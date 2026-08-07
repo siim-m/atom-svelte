@@ -1,0 +1,35 @@
+<script lang="ts">
+  import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+  import type * as Atom from "effect/unstable/reactivity/Atom";
+  import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+  import { untrack } from "svelte";
+  import { RegistryProvider } from "../src/index.ts";
+  import AtomResourceProbe from "./AtomResourceProbe.svelte";
+
+  interface Props {
+    readonly registry: AtomRegistry.AtomRegistry;
+    readonly first: Atom.Atom<AsyncResult.AsyncResult<string, string>>;
+    readonly second: Atom.Atom<AsyncResult.AsyncResult<string, string>>;
+  }
+
+  const { registry, first, second }: Props = $props();
+  let atom = $state(untrack(() => first));
+</script>
+
+<RegistryProvider {registry}>
+  <button
+    data-testid="switch-resource"
+    onclick={() => (atom = atom === first ? second : first)}>switch</button
+  >
+  <svelte:boundary>
+    <AtomResourceProbe
+      {atom}
+      suspendOnWaiting={true}
+      onReady={() => {}}
+    />
+
+    {#snippet pending()}
+      <p data-testid="resource-state">pending</p>
+    {/snippet}
+  </svelte:boundary>
+</RegistryProvider>

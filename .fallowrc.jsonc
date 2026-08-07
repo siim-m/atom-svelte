@@ -1,0 +1,7 @@
+{
+  // Svelte loads this configuration file by name.
+  "entry": ["svelte.config.js"],
+
+  // Prettier loads this plugin from prettier.svelte.config.cjs.
+  "ignoreDependencies": ["prettier-plugin-svelte"],
+}
