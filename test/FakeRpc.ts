@@ -135,13 +135,21 @@ export const makeFakeRpc = () => {
     queryRuns,
     refreshedRead,
     refreshedReadStarted,
-    watch: {
-      emit: (source: string, value: number) => Queue.offer(watchControl(source).queue, value),
-      end: (source: string) => Queue.end(watchControl(source).queue),
-      fail: (source: string, error: string) => Queue.fail(watchControl(source).queue, error),
-      finalizerRuns: (source: string) => watchControl(source).finalizerRuns,
-      started: (source: string) => watchControl(source).started,
-      startRuns: (source: string) => watchControl(source).startRuns,
+    watch: (source: string) => {
+      const control = watchControl(source);
+      return {
+        source,
+        emit: (value: number) => Queue.offer(control.queue, value),
+        end: () => Queue.end(control.queue),
+        fail: (error: string) => Queue.fail(control.queue, error),
+        get finalizerRuns() {
+          return control.finalizerRuns;
+        },
+        started: control.started,
+        get startRuns() {
+          return control.startRuns;
+        },
+      };
     },
   };
 };

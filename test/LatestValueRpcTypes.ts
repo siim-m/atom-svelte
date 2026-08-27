@@ -5,7 +5,7 @@ import { makeFakeRpc } from "./FakeRpc.ts";
 
 const fake = makeFakeRpc();
 
-export const streamingRecipe = fake.Client.runtime
+export const latestValueRecipe = fake.Client.runtime
   .atom(
     Stream.unwrap(
       fake.Client.use((client) => Effect.succeed(client("WatchCount", { source: "type-fixture" }))),

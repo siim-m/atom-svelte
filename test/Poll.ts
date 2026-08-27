@@ -1,4 +1,5 @@
 import { flushSync, settled, tick } from "svelte";
+import { text } from "./TestDom.ts";
 
 /** Repeats a step until the condition holds or the attempt budget ends. */
 export const pollUntil = async (
@@ -8,6 +9,20 @@ export const pollUntil = async (
 ): Promise<void> => {
   for (let attempt = 0; attempt < attempts && !condition(); attempt += 1) {
     await step();
+  }
+};
+
+/** Flushes Svelte work until one test element renders the expected text. */
+export const flushUntilText = async (testId: string, expected: string): Promise<void> => {
+  await pollUntil(
+    () => text(testId) === expected,
+    async () => {
+      flushSync();
+      await tick();
+    },
+  );
+  if (text(testId) !== expected) {
+    throw new Error(`Expected ${testId} to render ${expected}, received ${String(text(testId))}`);
   }
 };
 
