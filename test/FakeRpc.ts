@@ -1,8 +1,11 @@
+import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import * as AtomRpc from "effect/unstable/reactivity/AtomRpc";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
@@ -24,6 +27,12 @@ const FakeRpcGroup = RpcGroup.make(
     success: Schema.Number,
     error: InvalidCount,
   }),
+  Rpc.make("WatchCount", {
+    payload: { source: Schema.String },
+    success: Schema.Number,
+    error: Schema.String,
+    stream: true,
+  }),
 );
 
 export const countReactivityKeys = ["count"] as const;
@@ -31,6 +40,13 @@ export const countReactivityKeys = ["count"] as const;
 export interface SetCountInput {
   readonly payload: { readonly value: number };
   readonly reactivityKeys?: ReadonlyArray<unknown> | undefined;
+}
+
+interface WatchControl {
+  readonly queue: Queue.Queue<number, string | Cause.Done>;
+  readonly started: Deferred.Deferred<void>;
+  finalizerRuns: number;
+  startRuns: number;
 }
 
 export const makeFakeRpc = () => {
@@ -42,6 +58,21 @@ export const makeFakeRpc = () => {
   const refreshedReadStarted = Deferred.makeUnsafe<void>();
   const mutation = Deferred.makeUnsafe<void>();
   const mutationStarted = Deferred.makeUnsafe<void>();
+  const watchControls = new Map<string, WatchControl>();
+  const watchControl = (source: string): WatchControl => {
+    const existing = watchControls.get(source);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const control: WatchControl = {
+      queue: Effect.runSync(Queue.unbounded<number, string | Cause.Done>()),
+      started: Deferred.makeUnsafe<void>(),
+      finalizerRuns: 0,
+      startRuns: 0,
+    };
+    watchControls.set(source, control);
+    return control;
+  };
 
   const handlers = Effect.runSync(
     FakeRpcGroup.toHandlers({
@@ -64,6 +95,21 @@ export const makeFakeRpc = () => {
         yield* Deferred.await(mutation);
         return yield* Ref.updateAndGet(count, () => value);
       }),
+      WatchCount: ({ source }) =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            const control = watchControl(source);
+            control.startRuns += 1;
+            yield* Deferred.succeed(control.started, undefined);
+            return Stream.fromQueue(control.queue).pipe(
+              Stream.ensuring(
+                Effect.sync(() => {
+                  control.finalizerRuns += 1;
+                }),
+              ),
+            );
+          }),
+        ),
     }),
   );
 
@@ -76,6 +122,7 @@ export const makeFakeRpc = () => {
   });
 
   return {
+    Client,
     count,
     initialRead,
     initialReadStarted,
@@ -88,5 +135,13 @@ export const makeFakeRpc = () => {
     queryRuns,
     refreshedRead,
     refreshedReadStarted,
+    watch: {
+      emit: (source: string, value: number) => Queue.offer(watchControl(source).queue, value),
+      end: (source: string) => Queue.end(watchControl(source).queue),
+      fail: (source: string, error: string) => Queue.fail(watchControl(source).queue, error),
+      finalizerRuns: (source: string) => watchControl(source).finalizerRuns,
+      started: (source: string) => watchControl(source).started,
+      startRuns: (source: string) => watchControl(source).startRuns,
+    },
   };
 };

@@ -41,9 +41,10 @@
   "scripts": {
     "build": "svelte-package -i src -o dist && bun run scripts/RewriteDeclarationImports.ts",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
-    "test": "bun run test:browser && bun run test:ssr",
+    "test": "bun run test:browser && bun run test:ssr && bun run test:async-disabled",
     "test:browser": "vitest run",
     "test:ssr": "vitest run --config vitest.ssr.config.ts",
+    "test:async-disabled": "vitest run --config vitest.async-disabled.config.ts",
     "test:watch": "vitest",
     "lint": "oxlint --type-aware",
     "format:check": "oxfmt --check && bun run format:svelte:check",

@@ -6,7 +6,9 @@ Svelte 5 bindings for the Atom modules in `effect/unstable/reactivity`.
 
 ## Setup
 
-Enable Svelte experimental async. Svelte `hydratable` throws if this option is disabled.
+Plain atom bindings, including `useAtomValue` and the latest-value stream recipe below, work
+without Svelte experimental async. Enable experimental async when using the async-resource and
+automatic hydration features documented below; Svelte `hydratable` throws if it is disabled.
 
 ```js
 // svelte.config.js
@@ -58,6 +60,58 @@ For SSR:
 - `HydrationBoundary` — apply registry hydration state.
 - `makeScopedAtomContext` — share one atom through Svelte context.
 - `fromAtom`, `fromAtomRef`, `resolveAtom`, `resolveAtomRef` — low-level adapters.
+
+## Latest-value RPC streams
+
+Use a latest-value stream for an open-ended RPC feed where the UI needs only the newest emission.
+Compose the streaming RPC directly with Effect's public Atom primitives, then read the resulting
+ordinary atom with `useAtomValue`; `atom-svelte` adds no stream-specific API.
+
+```ts
+import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
+import * as Atom from "effect/unstable/reactivity/Atom";
+import { Client } from "./RpcClient.ts";
+
+export const latestCountAtom = Client.runtime
+  .atom(
+    Stream.unwrap(
+      Client.use((client) =>
+        Effect.succeed(
+          client("WatchCount", { source: "dashboard" }, { headers: { authorization: "..." } }),
+        ),
+      ),
+    ),
+  )
+  .pipe(Atom.setIdleTTL(0), Atom.withServerValueInitial);
+```
+
+```svelte
+<script lang="ts">
+  import { useAtomValue } from "@siim-m/atom-svelte";
+  import { latestCountAtom } from "./Atoms.ts";
+
+  const count = useAtomValue(latestCountAtom);
+</script>
+
+{#if count.current._tag === "Success"}
+  <p>{count.current.value}</p>
+{/if}
+```
+
+This path continuously consumes the RPC stream while it has a consumer and retains only the latest
+emission. A `Success(value, { waiting: true })` is usable state: `waiting: true` means the stream is
+still open, not that the value is unavailable. `Atom.setIdleTTL(0)` interrupts the underlying stream
+after Effect's scheduled cleanup when the final consumer detaches.
+
+`Atom.withServerValueInitial` keeps the stream client-only. SSR reads `Initial(waiting: true)` without
+starting the infinite RPC; the browser starts it when the component mounts. A stream failure exposes
+an `AsyncResult.Failure` whose `previousSuccess` retains the latest value. There is no automatic
+retry—put retry policy in the source stream or RPC layer. A non-empty finite stream completes as
+`Success(lastValue, { waiting: false })`; an empty stream fails with `NoSuchElementError`.
+
+Use `AtomRpc.query` instead for a pull stream: it advances on consumer writes and can retain multiple
+emissions. Do not auto-pump that accumulating pull atom to model latest-value state.
 
 ## Async resources
 
