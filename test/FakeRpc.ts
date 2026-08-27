@@ -8,12 +8,12 @@ import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 import * as RpcTest from "effect/unstable/rpc/RpcTest";
 
-class InvalidCount extends Schema.TaggedErrorClass<
-  InvalidCount,
-  { readonly brand: unique symbol }
->()("InvalidCount", {
-  value: Schema.Number,
-}) {}
+class InvalidCount extends Schema.TaggedError<InvalidCount, { readonly brand: unique symbol }>()(
+  "InvalidCount",
+  {
+    value: Schema.Number,
+  },
+) {}
 
 const FakeRpcGroup = RpcGroup.make(
   Rpc.make("ReadCount", {
