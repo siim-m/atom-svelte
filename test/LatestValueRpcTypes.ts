@@ -13,11 +13,13 @@ export const latestValueRecipe = fake.Client.runtime
   )
   .pipe(Atom.setIdleTTL(0), Atom.withServerValueInitial);
 
+const unaryRpcEffect = fake.Client.use((client) => Effect.succeed(client("ReadCount", undefined)));
+
 export const unaryRecipe = fake.Client.runtime
   .atom(
     Stream.unwrap(
       // @ts-expect-error A unary RPC yields an Effect, not a Stream.
-      fake.Client.use((client) => Effect.succeed(client("ReadCount", undefined))),
+      unaryRpcEffect,
     ),
   )
   .pipe(Atom.setIdleTTL(0), Atom.withServerValueInitial);

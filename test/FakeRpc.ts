@@ -43,11 +43,25 @@ export interface SetCountInput {
 }
 
 interface WatchControl {
-  readonly queue: Queue.Queue<number, string | Cause.Done>;
+  readonly queue: Queue.Queue<WatchMessage, string | Cause.Done>;
   readonly started: Deferred.Deferred<void>;
   finalizerRuns: number;
   startRuns: number;
 }
+
+interface WatchEmission {
+  readonly _tag: "Emission";
+  readonly value: number;
+}
+
+interface HeldWatchEmission {
+  readonly _tag: "HeldEmission";
+  readonly pulled: Deferred.Deferred<void>;
+  readonly release: Deferred.Deferred<void>;
+  readonly value: number;
+}
+
+type WatchMessage = WatchEmission | HeldWatchEmission;
 
 export const makeFakeRpc = () => {
   const count = Ref.makeUnsafe(1);
@@ -59,13 +73,13 @@ export const makeFakeRpc = () => {
   const mutation = Deferred.makeUnsafe<void>();
   const mutationStarted = Deferred.makeUnsafe<void>();
   const watchControls = new Map<string, WatchControl>();
-  const watchControl = (source: string): WatchControl => {
+  const getOrCreateWatchControl = (source: string): WatchControl => {
     const existing = watchControls.get(source);
     if (existing !== undefined) {
       return existing;
     }
     const control: WatchControl = {
-      queue: Effect.runSync(Queue.unbounded<number, string | Cause.Done>()),
+      queue: Effect.runSync(Queue.unbounded<WatchMessage, string | Cause.Done>()),
       started: Deferred.makeUnsafe<void>(),
       finalizerRuns: 0,
       startRuns: 0,
@@ -98,10 +112,20 @@ export const makeFakeRpc = () => {
       WatchCount: ({ source }) =>
         Stream.unwrap(
           Effect.gen(function* () {
-            const control = watchControl(source);
+            const control = getOrCreateWatchControl(source);
             control.startRuns += 1;
             yield* Deferred.succeed(control.started, undefined);
             return Stream.fromQueue(control.queue).pipe(
+              Stream.mapEffect((message) => {
+                if (message._tag === "Emission") {
+                  return Effect.succeed(message.value);
+                }
+                return Effect.gen(function* () {
+                  yield* Deferred.succeed(message.pulled, undefined);
+                  yield* Deferred.await(message.release);
+                  return message.value;
+                });
+              }),
               Stream.ensuring(
                 Effect.sync(() => {
                   control.finalizerRuns += 1;
@@ -136,14 +160,28 @@ export const makeFakeRpc = () => {
     refreshedRead,
     refreshedReadStarted,
     watch: (source: string) => {
-      const control = watchControl(source);
+      const control = getOrCreateWatchControl(source);
       return {
         source,
-        emit: (value: number) => Queue.offer(control.queue, value),
+        emit: (value: number) => Queue.offer(control.queue, { _tag: "Emission", value }),
         end: () => Queue.end(control.queue),
         fail: (error: string) => Queue.fail(control.queue, error),
         get finalizerRuns() {
           return control.finalizerRuns;
+        },
+        hold: (value: number) => {
+          const pulled = Deferred.makeUnsafe<void>();
+          const release = Deferred.makeUnsafe<void>();
+          return {
+            enqueue: Queue.offer(control.queue, {
+              _tag: "HeldEmission",
+              pulled,
+              release,
+              value,
+            }),
+            pulled,
+            release: Deferred.succeed(release, undefined),
+          };
         },
         started: control.started,
         get startRuns() {

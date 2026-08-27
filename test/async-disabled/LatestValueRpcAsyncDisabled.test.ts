@@ -2,11 +2,10 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { flushSync, mount, unmount } from "svelte";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, it } from "vitest";
 import { makeFakeRpc } from "../FakeRpc.ts";
 import { makeLatestValueAtom } from "../LatestValueRpc.ts";
 import { flushUntilText } from "../Poll.ts";
-import { text } from "../TestDom.ts";
 import LatestValueRpcAsyncDisabledApp from "./LatestValueRpcAsyncDisabledApp.svelte";
 
 afterEach(() => {
@@ -29,7 +28,6 @@ describe("latest-value RPC streams without experimental async", () => {
     await Effect.runPromise(watch.emit(1));
     await flushUntilText("latest-value-state", "Success:true:1");
 
-    expect(text("latest-value-state")).toBe("Success:true:1");
     await unmount(component);
     registry.dispose();
   });

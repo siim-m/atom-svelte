@@ -139,15 +139,18 @@ describe("latest-value RPC streams", () => {
     await Effect.runPromise(firstWatch.emit(1));
     await flushUntilText("latest-value-state", "Success:true:1");
 
+    const lateEmission = firstWatch.hold(2);
+    await Effect.runPromise(lateEmission.enqueue);
+    await Effect.runPromise(Deferred.await(lateEmission.pulled));
+
     click("switch-latest-value");
+    await Effect.runPromise(lateEmission.release);
+    await flushStep();
+    expect(text("latest-value-state")).toBe("Initial:true");
+
     await Effect.runPromise(Deferred.await(secondWatch.started));
     await pollUntil(() => firstWatch.finalizerRuns === 1, flushStep);
     expect(firstWatch.finalizerRuns).toBe(1);
-    await flushUntilText("latest-value-state", "Initial:true");
-
-    await Effect.runPromise(firstWatch.emit(2));
-    await flushStep();
-    expect(text("latest-value-state")).toBe("Initial:true");
 
     await Effect.runPromise(secondWatch.emit(10));
     await flushUntilText("latest-value-state", "Success:true:10");

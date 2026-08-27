@@ -64,7 +64,7 @@ For SSR:
 ## Latest-value RPC streams
 
 Use a latest-value stream for an open-ended RPC feed. Use it when the UI needs only the newest
-emission. Compose the streaming RPC with public Effect Atom primitives. Then read the ordinary atom
+emission. Compose the RPC stream with public Effect Atom primitives. Then read the ordinary atom
 with `useAtomValue`. `atom-svelte` does not add a stream-specific API.
 
 ```ts
@@ -102,17 +102,17 @@ export const latestCountAtom = Client.runtime
 This path consumes the RPC stream continuously while it has a consumer. The atom retains only the
 latest emission. A `Success(value, { waiting: true })` is usable state. `waiting: true` means that the
 stream is open. It does not mean that the value is unavailable. `Atom.setIdleTTL(0)` interrupts the
-underlying stream when the final consumer detaches. Effect runs this cleanup on its schedule.
+underlying stream when the final consumer detaches. Effect schedules this cleanup.
 
 `Atom.withServerValueInitial` makes the stream client-only. SSR reads `Initial(waiting: true)`. SSR
 does not start the infinite RPC. The browser starts the RPC when the component mounts. A stream
-failure produces an `AsyncResult.Failure`. Its `previousSuccess` retains the latest value. There is
-no automatic retry. Put the retry policy in the source stream or RPC layer. A non-empty finite stream
-completes as `Success(lastValue, { waiting: false })`. An empty stream fails with
+failure produces an `AsyncResult.Failure`. Its `previousSuccess` retains the latest value. The atom
+does not retry automatically. Put the retry policy in the source stream or RPC layer. A non-empty
+finite stream completes as `Success(lastValue, { waiting: false })`. An empty stream fails with
 `NoSuchElementError`.
 
 Use `AtomRpc.query` for a pull stream. Consumer writes advance this stream, and it can retain multiple
-emissions. Do not automatically pump that pull atom to model latest-value state.
+emissions. Do not write to that pull atom automatically to model latest-value state.
 
 ## Async resources
 
