@@ -7,5 +7,5 @@
 - **Pull stream**: a demand-driven stream. A consumer action advances it, and it can retain multiple
   emissions.
 
-Use these qualified terms in code, tests, and documentation. Avoid the ambiguous standalone term
-“streaming query”; “live query” is also not canonical.
+Use these terms in code, tests, and documentation. Do not use `streaming query` by itself. Do not use
+`live query`.

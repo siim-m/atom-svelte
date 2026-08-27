@@ -141,7 +141,7 @@ describe("latest-value RPC streams", () => {
 
     const lateEmission = firstWatch.hold(2);
     await Effect.runPromise(lateEmission.enqueue);
-    await Effect.runPromise(Deferred.await(lateEmission.pulled));
+    await Effect.runPromise(lateEmission.awaitPulled);
 
     click("switch-latest-value");
     await Effect.runPromise(lateEmission.release);

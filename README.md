@@ -68,6 +68,7 @@ emission. Compose the RPC stream with public Effect Atom primitives. Then read t
 with `useAtomValue`. `atom-svelte` does not add a stream-specific API.
 
 ```ts
+// Atoms.ts
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as Atom from "effect/unstable/reactivity/Atom";

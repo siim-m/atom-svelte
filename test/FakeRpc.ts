@@ -173,13 +173,13 @@ export const makeFakeRpc = () => {
           const pulled = Deferred.makeUnsafe<void>();
           const release = Deferred.makeUnsafe<void>();
           return {
+            awaitPulled: Deferred.await(pulled),
             enqueue: Queue.offer(control.queue, {
               _tag: "HeldEmission",
               pulled,
               release,
               value,
             }),
-            pulled,
             release: Deferred.succeed(release, undefined),
           };
         },
