@@ -7,21 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { AtomPromiseSet } from "../src/index.ts";
 import FakeRpcApp from "./FakeRpcApp.svelte";
 import { countReactivityKeys, makeFakeRpc, type SetCountInput } from "./FakeRpc.ts";
-import { pollUntil } from "./Poll.ts";
+import { flushUntilText } from "./Poll.ts";
 import { text } from "./TestDom.ts";
-
-const flushUntil = async (testId: string, expected: string): Promise<void> => {
-  await pollUntil(
-    () => text(testId) === expected,
-    async () => {
-      flushSync();
-      await tick();
-    },
-  );
-  if (text(testId) !== expected) {
-    throw new Error(`Expected ${testId} to render ${expected}, received ${String(text(testId))}`);
-  }
-};
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -49,10 +36,10 @@ describe("fake RPC integration", () => {
     }
 
     await Effect.runPromise(Deferred.await(fake.initialReadStarted));
-    await flushUntil("query-state", "Initial:true");
+    await flushUntilText("query-state", "Initial:true");
 
     await Effect.runPromise(Deferred.succeed(fake.initialRead, undefined));
-    await flushUntil("query-state", "Success:false:1");
+    await flushUntilText("query-state", "Success:false:1");
     expect(await Effect.runPromise(Ref.get(fake.queryRuns))).toBe(1);
 
     const setCount = mutation.set({
@@ -60,16 +47,16 @@ describe("fake RPC integration", () => {
       reactivityKeys: countReactivityKeys,
     });
     await Effect.runPromise(Deferred.await(fake.mutationStarted));
-    await flushUntil("mutation-state", "Initial:true");
+    await flushUntilText("mutation-state", "Initial:true");
 
     await Effect.runPromise(Deferred.succeed(fake.mutation, undefined));
     await expect(setCount).resolves.toBe(2);
-    await flushUntil("mutation-state", "Success:false:2");
+    await flushUntilText("mutation-state", "Success:false:2");
     await Effect.runPromise(Deferred.await(fake.refreshedReadStarted));
-    await flushUntil("query-state", "Success:true:1");
+    await flushUntilText("query-state", "Success:true:1");
 
     await Effect.runPromise(Deferred.succeed(fake.refreshedRead, undefined));
-    await flushUntil("query-state", "Success:false:2");
+    await flushUntilText("query-state", "Success:false:2");
     expect(await Effect.runPromise(Ref.get(fake.queryRuns))).toBe(2);
 
     await expect(

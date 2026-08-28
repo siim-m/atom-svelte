@@ -29,6 +29,7 @@
     "scripts/**/*.ts",
     "svelte.config.js",
     "vitest.config.ts",
+    "vitest.async-disabled.config.ts",
     "vitest.ssr.config.ts"
   ]
 }

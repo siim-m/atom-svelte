@@ -9,6 +9,6 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["test/**/*.test.ts"],
-    exclude: ["test/**/*.ssr.test.ts"],
+    exclude: ["test/**/*.ssr.test.ts", "test/async-disabled/**/*.test.ts"],
   },
 });
