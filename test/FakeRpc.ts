@@ -6,10 +6,10 @@ import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import * as AtomRpc from "effect/unstable/reactivity/AtomRpc";
-import * as Rpc from "effect/unstable/rpc/Rpc";
-import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
-import * as RpcTest from "effect/unstable/rpc/RpcTest";
+import * as AtomRpc from "effect/reactivity/AtomRpc";
+import * as Rpc from "effect/rpc/Rpc";
+import * as RpcGroup from "effect/rpc/RpcGroup";
+import * as RpcTest from "effect/rpc/RpcTest";
 
 class InvalidCount extends Schema.TaggedError<InvalidCount, { readonly brand: unique symbol }>()(
   "InvalidCount",

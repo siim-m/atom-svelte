@@ -1,6 +1,6 @@
 # `@siim-m/atom-svelte`
 
-Svelte 5 bindings for the Atom modules in `effect/unstable/reactivity`.
+Svelte 5 bindings for the Atom modules in `effect/reactivity`.
 
 > **Status: early alpha.** The API can change between releases.
 
@@ -27,7 +27,7 @@ Import:
 - `Atom`, `AsyncResult`, `AtomRegistry`, and other Effect modules from `effect`.
 
 ```ts
-import * as Atom from "effect/unstable/reactivity/Atom";
+import * as Atom from "effect/reactivity/Atom";
 ```
 
 Put one `RegistryProvider` above all components that use the bindings.
@@ -71,7 +71,7 @@ with `useAtomValue`. `atom-svelte` does not add a stream-specific API.
 // Atoms.ts
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import * as Atom from "effect/unstable/reactivity/Atom";
+import * as Atom from "effect/reactivity/Atom";
 import { Client } from "./RpcClient.ts";
 
 export const latestCountAtom = Client.runtime

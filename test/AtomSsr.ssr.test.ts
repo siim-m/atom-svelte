@@ -1,5 +1,5 @@
-import * as Atom from "effect/unstable/reactivity/Atom";
-import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import * as Atom from "effect/reactivity/Atom";
+import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { render } from "svelte/server";
 import { describe, expect, it, vi } from "vitest";
 import SsrAtomApp from "./SsrAtomApp.svelte";

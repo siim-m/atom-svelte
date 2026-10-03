@@ -1,4 +1,4 @@
-import type * as AtomRef from "effect/unstable/reactivity/AtomRef";
+import type * as AtomRef from "effect/reactivity/AtomRef";
 import { createSubscriber } from "svelte/reactivity";
 import type { AtomValue } from "./AtomAdapter.ts";
 

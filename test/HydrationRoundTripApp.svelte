@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-  import type * as Atom from "effect/unstable/reactivity/Atom";
-  import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+  import type * as AsyncResult from "effect/reactivity/AsyncResult";
+  import type * as Atom from "effect/reactivity/Atom";
+  import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
   import { RegistryProvider } from "../src/index.ts";
   import HydratableResourceProbe from "./HydratableResourceProbe.svelte";
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { AtomPromiseSet } from "../src/index.ts";
   import { RegistryProvider } from "../src/index.ts";
-  import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+  import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
   import type { makeFakeRpc, SetCountInput } from "./FakeRpc.ts";
   import FakeRpcProbe from "./FakeRpcProbe.svelte";
 

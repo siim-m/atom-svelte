@@ -1,4 +1,4 @@
-import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { createContext } from "svelte";
 import type { ResourceHydration } from "./ResourceHydration.ts";
 

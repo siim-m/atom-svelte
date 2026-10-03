@@ -1,4 +1,4 @@
-import type * as AtomRef from "effect/unstable/reactivity/AtomRef";
+import type * as AtomRef from "effect/reactivity/AtomRef";
 import type { AtomValue } from "./AtomAdapter.ts";
 import { fromAtomRef, type AtomRefInput, resolveAtomRef } from "./AtomRefAdapter.ts";
 

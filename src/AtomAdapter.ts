@@ -1,6 +1,6 @@
 import { BROWSER } from "esm-env";
-import * as Atom from "effect/unstable/reactivity/Atom";
-import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import * as Atom from "effect/reactivity/Atom";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { createSubscriber } from "svelte/reactivity";
 
 /** A Svelte reactive value with a stable object identity. */

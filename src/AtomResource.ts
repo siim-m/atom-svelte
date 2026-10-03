@@ -1,10 +1,10 @@
 import { BROWSER } from "esm-env";
 import * as Cause from "effect/Cause";
 import type * as Schema from "effect/Schema";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-import * as Atom from "effect/unstable/reactivity/Atom";
-import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-import type * as Hydration from "effect/unstable/reactivity/Hydration";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
+import * as Atom from "effect/reactivity/Atom";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
+import type * as Hydration from "effect/reactivity/Hydration";
 import { getAbortSignal, onDestroy } from "svelte";
 import { createSubscriber } from "svelte/reactivity";
 import { type AtomInput, type AtomValue, resolveAtom } from "./AtomAdapter.ts";
@@ -197,7 +197,7 @@ const getServerTransfer = <A, E>(
   }
 
   return {
-    "~effect/reactivity/DehydratedAtom": true as const,
+    "~effect/reactivity/Hydration/DehydratedAtom": true as const,
     key: serializationKey,
     value: atom[Atom.SerializableTypeId].encode(result),
     dehydratedAt: Date.now(),

@@ -1,6 +1,6 @@
 <!-- @component Hydrates the current atom registry before it renders children. -->
 <script lang="ts">
-  import type * as Hydration from "effect/unstable/reactivity/Hydration";
+  import type * as Hydration from "effect/reactivity/Hydration";
   import { type Snippet, untrack } from "svelte";
   import { getAtomRegistry } from "./RegistryContext.ts";
   import { hydrateRegistry } from "./ResourceHydration.ts";
