@@ -1,4 +1,4 @@
-import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { render } from "svelte/server";
 import { describe, expect, it } from "vitest";
 import { makeFakeRpc } from "./FakeRpc.ts";

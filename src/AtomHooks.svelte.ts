@@ -1,9 +1,9 @@
 import { BROWSER } from "esm-env";
 import * as Effect from "effect/Effect";
 import type * as Exit from "effect/Exit";
-import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-import * as Atom from "effect/unstable/reactivity/Atom";
-import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import type * as AsyncResult from "effect/reactivity/AsyncResult";
+import * as Atom from "effect/reactivity/Atom";
+import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { fromAtom, type AtomInput, type AtomValue, resolveAtom } from "./AtomAdapter.ts";
 import { getAtomRegistry } from "./RegistryContext.ts";
 

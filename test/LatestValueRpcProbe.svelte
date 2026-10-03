@@ -1,8 +1,8 @@
 <script lang="ts">
   import * as Cause from "effect/Cause";
   import * as Option from "effect/Option";
-  import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-  import type * as Atom from "effect/unstable/reactivity/Atom";
+  import type * as AsyncResult from "effect/reactivity/AsyncResult";
+  import type * as Atom from "effect/reactivity/Atom";
   import { useAtomValue } from "../src/index.ts";
 
   interface Props {

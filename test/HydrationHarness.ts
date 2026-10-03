@@ -1,7 +1,7 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-import type * as Atom from "effect/unstable/reactivity/Atom";
-import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import type * as AsyncResult from "effect/reactivity/AsyncResult";
+import type * as Atom from "effect/reactivity/Atom";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";

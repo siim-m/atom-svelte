@@ -1,6 +1,6 @@
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
-import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { flushSync, mount, unmount } from "svelte";
 import { afterEach, describe, it } from "vitest";
 import { makeFakeRpc } from "../FakeRpc.ts";

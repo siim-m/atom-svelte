@@ -1,8 +1,8 @@
 <!-- @component Provides an atom registry to a Svelte component subtree. -->
 <script lang="ts">
   import { DEV } from "esm-env";
-  import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-  import type * as Hydration from "effect/unstable/reactivity/Hydration";
+  import * as AtomRegistry from "effect/reactivity/AtomRegistry";
+  import type * as Hydration from "effect/reactivity/Hydration";
   import { onDestroy, type Snippet, untrack } from "svelte";
   import { setRegistryContext } from "./RegistryContext.ts";
   import { hydrateRegistry, makeResourceHydration } from "./ResourceHydration.ts";

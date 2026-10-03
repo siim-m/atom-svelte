@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type * as AtomRef from "effect/unstable/reactivity/AtomRef";
+  import type * as AtomRef from "effect/reactivity/AtomRef";
   import { untrack } from "svelte";
   import { fromAtomRef, useAtomRef, useAtomRefProp, useAtomRefPropValue } from "../src/index.ts";
 

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type * as Atom from "effect/unstable/reactivity/Atom";
-  import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-  import type * as Hydration from "effect/unstable/reactivity/Hydration";
+  import type * as Atom from "effect/reactivity/Atom";
+  import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
+  import type * as Hydration from "effect/reactivity/Hydration";
   import { untrack } from "svelte";
   import { HydrationBoundary, RegistryProvider } from "../src/index.ts";
   import RegistryProbe from "./RegistryProbe.svelte";

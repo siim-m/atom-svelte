@@ -1,4 +1,4 @@
-import type * as Atom from "effect/unstable/reactivity/Atom";
+import type * as Atom from "effect/reactivity/Atom";
 import { createContext } from "svelte";
 
 /** Creates typed get and set functions for an atom scoped to a component subtree. */

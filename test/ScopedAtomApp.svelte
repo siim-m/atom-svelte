@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type * as Atom from "effect/unstable/reactivity/Atom";
-  import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+  import type * as Atom from "effect/reactivity/Atom";
+  import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
   import { untrack } from "svelte";
   import { RegistryProvider } from "../src/index.ts";
   import { setScopedAtom } from "./ScopedAtomContext.ts";

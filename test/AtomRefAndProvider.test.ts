@@ -1,8 +1,8 @@
 import * as Schema from "effect/Schema";
-import * as Atom from "effect/unstable/reactivity/Atom";
-import * as AtomRef from "effect/unstable/reactivity/AtomRef";
-import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-import type * as Hydration from "effect/unstable/reactivity/Hydration";
+import * as Atom from "effect/reactivity/Atom";
+import * as AtomRef from "effect/reactivity/AtomRef";
+import * as AtomRegistry from "effect/reactivity/AtomRegistry";
+import type * as Hydration from "effect/reactivity/Hydration";
 import { flushSync, mount, unmount } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AtomRefProbe from "./AtomRefProbe.svelte";
@@ -11,7 +11,7 @@ import ScopedAtomApp from "./ScopedAtomApp.svelte";
 import { click, text } from "./TestDom.ts";
 
 const dehydratedValue = (key: string, value: unknown): Hydration.DehydratedAtomValue => ({
-  "~effect/reactivity/DehydratedAtom": true,
+  "~effect/reactivity/Hydration/DehydratedAtom": true,
   key,
   value,
   dehydratedAt: 0,

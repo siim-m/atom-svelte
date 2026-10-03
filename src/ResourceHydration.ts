@@ -1,6 +1,6 @@
 import { BROWSER } from "esm-env";
-import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-import * as Hydration from "effect/unstable/reactivity/Hydration";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
+import * as Hydration from "effect/reactivity/Hydration";
 import { hydratable } from "svelte";
 
 /** Namespaces this package's `hydratable` keys. Changing it invalidates transferred SSR state. */
@@ -24,7 +24,7 @@ const isSvelteHydrationState = (value: unknown): value is SvelteHydrationState =
 const isDehydratedAtomValue = (value: unknown): value is Hydration.DehydratedAtomValue =>
   typeof value === "object" &&
   value !== null &&
-  Reflect.get(value, "~effect/reactivity/DehydratedAtom") === true &&
+  Reflect.get(value, "~effect/reactivity/Hydration/DehydratedAtom") === true &&
   typeof Reflect.get(value, "key") === "string" &&
   typeof Reflect.get(value, "dehydratedAt") === "number";
 

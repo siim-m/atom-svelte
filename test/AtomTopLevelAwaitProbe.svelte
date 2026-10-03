@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-  import type * as Atom from "effect/unstable/reactivity/Atom";
+  import type * as AsyncResult from "effect/reactivity/AsyncResult";
+  import type * as Atom from "effect/reactivity/Atom";
   import { useAtomResource } from "../src/index.ts";
 
   interface Props {
