@@ -10,9 +10,10 @@
     readonly registry: AtomRegistry.AtomRegistry;
     readonly first: Atom.Atom<AsyncResult.AsyncResult<string, string>>;
     readonly second: Atom.Atom<AsyncResult.AsyncResult<string, string>>;
+    readonly onEvaluate?: (() => void) | undefined;
   }
 
-  const { registry, first, second }: Props = $props();
+  const { registry, first, second, onEvaluate }: Props = $props();
   let atom = $state(untrack(() => first));
 </script>
 
@@ -26,6 +27,7 @@
       {atom}
       suspendOnWaiting={true}
       onReady={() => {}}
+      {onEvaluate}
     />
 
     {#snippet pending()}

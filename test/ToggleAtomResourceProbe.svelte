@@ -19,6 +19,9 @@
     {#snippet pending()}
       <p data-testid="toggle-resource">pending</p>
     {/snippet}
+    {#snippet failed(error)}
+      <p data-testid="toggle-resource">failure:{String(error)}</p>
+    {/snippet}
   </svelte:boundary>
 {:else}
   <p data-testid="toggle-resource">hidden</p>

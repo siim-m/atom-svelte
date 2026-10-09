@@ -1,25 +1,59 @@
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Schema from "effect/Schema";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
 import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { flushSync, mount, settled, tick, unmount } from "svelte";
 import { afterEach, describe, expect, it } from "vitest";
+import { resourceHydrationKeyPrefix } from "../src/ResourceHydration.ts";
 import AtomResourceApp from "./AtomResourceApp.svelte";
 import AtomTopLevelAwaitApp from "./AtomTopLevelAwaitApp.svelte";
 import type { AsyncTestPromiseApi, AsyncTestRequest } from "./AsyncTestTypes.ts";
 import DynamicAtomResourceApp from "./DynamicAtomResourceApp.svelte";
+import NavigationResourceApp from "./NavigationResourceApp.svelte";
 import { flushStep, pollUntil, tickStep } from "./Poll.ts";
 import PromiseModesApp from "./PromiseModesApp.svelte";
 import ResultModeResourceApp from "./ResultModeResourceApp.svelte";
+import ResumedResourceReadersApp from "./ResumedResourceReadersApp.svelte";
 import SharedAtomResourceApp from "./SharedAtomResourceApp.svelte";
-import { text } from "./TestDom.ts";
+import { click, text } from "./TestDom.ts";
 import ToggleAtomResourceApp from "./ToggleAtomResourceApp.svelte";
 
 afterEach(() => {
   document.body.innerHTML = "";
+  Reflect.deleteProperty(window, "__svelte");
 });
+
+const resultSchema = AsyncResult.Schema({ success: Schema.String, error: Schema.String });
+
+const makeSettledAtom = (value: string): Atom.Writable<AsyncResult.AsyncResult<string, string>> =>
+  Atom.make<AsyncResult.AsyncResult<string, string>>(AsyncResult.success(value));
+
+const makeSettledSerializableAtom = (
+  value: string,
+): Atom.Atom<AsyncResult.AsyncResult<string, string>> => {
+  const query: Effect.Effect<string, string> = Effect.succeed(value);
+  return Atom.make(query).pipe(
+    Atom.serializable({ key: `settled-${value}`, schema: resultSchema }),
+    Atom.keepAlive,
+  );
+};
+
+/** Makes the next preparation of a serializable resource wait for a server transfer. */
+const holdResourceTransfer = (hydrationScope: string, serializationKey: string): (() => void) => {
+  let release = (): void => {};
+  const transfer = new Promise<undefined>((resolve) => {
+    release = () => resolve(undefined);
+  });
+  const hydrationKey = `${resourceHydrationKeyPrefix}${JSON.stringify([
+    hydrationScope,
+    serializationKey,
+  ])}`;
+  Reflect.set(window, "__svelte", { h: new Map([[hydrationKey, transfer]]) });
+  return release;
+};
 
 describe("asynchronous atom bindings", () => {
   it("reports write results and can cancel waiting without canceling atom execution", async () => {
@@ -408,5 +442,182 @@ describe("asynchronous atom bindings", () => {
 
     await unmount(component);
     registry.dispose();
+  });
+  it.each([
+    { kind: "plain", makeAtom: makeSettledAtom },
+    { kind: "serializable", makeAtom: makeSettledSerializableAtom },
+  ])(
+    "evaluates an awaiting derived once when it mounts against settled $kind atoms",
+    async ({ makeAtom }) => {
+      const registry = AtomRegistry.make();
+      const atoms = ["a", "b", "c", "d"].map(makeAtom);
+      const releaseAtoms = atoms.map((atom) => registry.mount(atom));
+      expect(atoms.every((atom) => AsyncResult.isSuccess(registry.get(atom)))).toBe(true);
+      let evaluations = 0;
+      const component = mount(NavigationResourceApp, {
+        target: document.body,
+        props: {
+          registry,
+          atoms,
+          onEvaluate: () => {
+            evaluations += 1;
+          },
+        },
+      });
+      flushSync();
+
+      for (let round = 0; round < 3; round += 1) {
+        evaluations = 0;
+        click("navigate");
+        await pollUntil(() => text("navigation-resources") === "a,b,c,d", flushStep);
+        await pollUntil(() => false, tickStep, 5);
+        expect(text("navigation-resources")).toBe("a,b,c,d");
+        expect(evaluations).toBe(1);
+
+        click("navigate");
+        await pollUntil(() => text("navigation-resources") === "other", flushStep);
+      }
+
+      await unmount(component);
+      for (const release of releaseAtoms) {
+        release();
+      }
+      registry.dispose();
+    },
+  );
+
+  it("evaluates an awaiting derived once when a dynamic resource switches to a settled atom", async () => {
+    const registry = AtomRegistry.make();
+    const first = makeSettledAtom("first");
+    const second = makeSettledAtom("second");
+    let evaluations = 0;
+    const component = mount(DynamicAtomResourceApp, {
+      target: document.body,
+      props: {
+        registry,
+        first,
+        second,
+        onEvaluate: () => {
+          evaluations += 1;
+        },
+      },
+    });
+    await pollUntil(() => text("resource-state") === "success:first", flushStep);
+    await pollUntil(() => false, tickStep, 5);
+
+    evaluations = 0;
+    click("switch-resource");
+    await pollUntil(() => text("resource-state") === "success:second", flushStep);
+    await pollUntil(() => false, tickStep, 5);
+    expect(text("resource-state")).toBe("success:second");
+    expect(evaluations).toBe(1);
+
+    await unmount(component);
+    registry.dispose();
+  });
+
+  it("updates every reader that resumed before its subscription connected", async () => {
+    const registry = AtomRegistry.make();
+    const atom = makeSettledAtom("initial");
+    const component = mount(ResumedResourceReadersApp, {
+      target: document.body,
+      props: { registry, atom },
+    });
+    await pollUntil(
+      () => text("first-reader") === "initial" && text("second-reader") === "initial",
+      flushStep,
+    );
+
+    click("toggle-first-reader");
+    click("toggle-second-reader");
+    await pollUntil(() => false, tickStep, 5);
+    expect([text("first-reader"), text("second-reader")]).toEqual(["hidden", "hidden"]);
+
+    // Both readers read before the restarted registry subscription connects.
+    click("toggle-first-reader");
+    registry.set(atom, AsyncResult.success("changed"));
+    click("toggle-second-reader");
+    await pollUntil(
+      () => text("first-reader") === "changed" && text("second-reader") === "changed",
+      flushStep,
+    );
+    expect([text("first-reader"), text("second-reader")]).toEqual(["changed", "changed"]);
+
+    await unmount(component);
+    registry.dispose();
+  });
+
+  it("connects a subscription that restarts while preparation is pending", async () => {
+    const releaseTransfer = holdResourceTransfer("pending-scope", "pending-resource");
+    const registry = AtomRegistry.make();
+    const atom = Atom.make<AsyncResult.AsyncResult<string, string>>(
+      AsyncResult.success("initial"),
+    ).pipe(Atom.serializable({ key: "pending-resource", schema: resultSchema }));
+    const component = mount(ToggleAtomResourceApp, {
+      target: document.body,
+      props: { registry, atom, hydrationScope: "pending-scope" },
+    });
+    flushSync();
+    await pollUntil(() => false, tickStep, 5);
+    expect(text("toggle-resource")).toBe("pending");
+
+    click("toggle-show");
+    await pollUntil(() => false, tickStep, 5);
+    expect(text("toggle-resource")).toBe("hidden");
+    click("toggle-show");
+    await pollUntil(() => false, tickStep, 5);
+    expect(text("toggle-resource")).toBe("pending");
+
+    releaseTransfer();
+    await pollUntil(() => text("toggle-resource") === "success:initial", flushStep);
+    expect(text("toggle-resource")).toBe("success:initial");
+
+    registry.set(atom, AsyncResult.success("changed"));
+    await pollUntil(() => text("toggle-resource") === "success:changed", flushStep);
+    expect(text("toggle-resource")).toBe("success:changed");
+
+    await unmount(component);
+    registry.dispose();
+  });
+
+  it("rejects a resumed read when its subscription cannot connect", async () => {
+    const registry = AtomRegistry.make();
+    const atom = makeSettledAtom("initial");
+    const component = mount(ToggleAtomResourceApp, {
+      target: document.body,
+      props: { registry, atom },
+    });
+    await pollUntil(() => text("toggle-resource") === "success:initial", flushStep);
+
+    click("toggle-show");
+    await pollUntil(() => false, tickStep, 5);
+    registry.dispose();
+    click("toggle-show");
+    await pollUntil(() => text("toggle-resource")?.startsWith("failure:") === true, flushStep);
+    expect(text("toggle-resource")).toContain("registry is disposed");
+
+    await unmount(component);
+  });
+
+  it("rejects a pending read when its subscription cannot connect after preparation", async () => {
+    const releaseTransfer = holdResourceTransfer("failing-scope", "failing-resource");
+    const registry = AtomRegistry.make();
+    const atom = Atom.make<AsyncResult.AsyncResult<string, string>>(
+      AsyncResult.success("initial"),
+    ).pipe(Atom.serializable({ key: "failing-resource", schema: resultSchema }));
+    const component = mount(ToggleAtomResourceApp, {
+      target: document.body,
+      props: { registry, atom, hydrationScope: "failing-scope" },
+    });
+    flushSync();
+    await pollUntil(() => false, tickStep, 5);
+    expect(text("toggle-resource")).toBe("pending");
+
+    registry.dispose();
+    releaseTransfer();
+    await pollUntil(() => text("toggle-resource")?.startsWith("failure:") === true, flushStep);
+    expect(text("toggle-resource")).toContain("registry is disposed");
+
+    await unmount(component);
   });
 });
