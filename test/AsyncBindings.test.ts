@@ -618,6 +618,37 @@ describe("asynchronous atom bindings", () => {
     await unmount(component);
   });
 
+  it("retries a failed connection on the next read", async () => {
+    const registry = AtomRegistry.make();
+    const source = Atom.make(0);
+    const atom = Atom.make((get): AsyncResult.AsyncResult<string, string> => {
+      const value = get(source);
+      if (value === 0) {
+        throw new Error("not ready");
+      }
+      return AsyncResult.success(`ready:${value}`);
+    });
+    const component = mount(ToggleAtomResourceApp, {
+      target: document.body,
+      props: { registry, atom },
+    });
+    await pollUntil(() => text("toggle-resource")?.startsWith("failure:") === true, flushStep);
+    expect(text("toggle-resource")).toContain("not ready");
+
+    registry.set(source, 1);
+    click("reset-resource");
+    await pollUntil(() => text("toggle-resource") === "success:ready:1", flushStep);
+    expect(text("toggle-resource")).toBe("success:ready:1");
+
+    // The retried connection delivers later changes.
+    registry.set(source, 2);
+    await pollUntil(() => text("toggle-resource") === "success:ready:2", flushStep);
+    expect(text("toggle-resource")).toBe("success:ready:2");
+
+    await unmount(component);
+    registry.dispose();
+  });
+
   it("rejects a pending read when its subscription cannot connect after preparation", async () => {
     const releaseTransfer = holdResourceTransfer("failing-scope", "failing-resource");
     const registry = AtomRegistry.make();

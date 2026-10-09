@@ -211,8 +211,10 @@ interface WaitingCurrent<Out> {
 
 const foreverPending = new Promise<never>(() => {});
 
-// A tracked read of a prepared resource runs only after the registry subscription is live, so the
-// subscription reports every later change and nothing else.
+// Svelte starts a subscription during the first tracked read, but its registry connection waits in
+// `#pendingConnection` until a read runs it. Every read connects first, so no reader holds a result
+// the registry subscription has not seen. The subscription then reports every later change and
+// nothing else.
 class StaticAtomResource<A, E, Out> implements AtomValue<Promise<Out>> {
   readonly #subscribe: () => void;
   readonly context: RegistryContext;
@@ -223,7 +225,7 @@ class StaticAtomResource<A, E, Out> implements AtomValue<Promise<Out>> {
   #preparation: Promise<void> | undefined;
   readonly #pending = new Map<AbortSignal | undefined, Promise<Out>>();
   readonly #waiting = new Map<AbortSignal | undefined, WaitingCurrent<Out>>();
-  #connectWhenPrepared: (() => void) | undefined;
+  #pendingConnection: (() => void) | undefined;
   #stopSubscription: (() => void) | undefined;
   #serverResult: AsyncResult.AsyncResult<A, E> | undefined;
   #disposed = false;
@@ -241,13 +243,15 @@ class StaticAtomResource<A, E, Out> implements AtomValue<Promise<Out>> {
     this.#subscribe = createSubscriber((update) => {
       let unsubscribe: (() => void) | undefined;
       const connect = (): void => {
-        // Consume initialization notifications before attaching the registry listener.
+        // Build the node before attaching the listener. `subscribe` leaves an unbuilt node alone,
+        // and a node's first build notifies its listeners, which would re-run the reader for the
+        // result it is about to read.
         this.context.registry.get(this.atom);
         unsubscribe = this.context.registry.subscribe(this.atom, update);
       };
       const stop = (): void => {
-        if (this.#connectWhenPrepared === connect) {
-          this.#connectWhenPrepared = undefined;
+        if (this.#pendingConnection === connect) {
+          this.#pendingConnection = undefined;
         }
         unsubscribe?.();
         unsubscribe = undefined;
@@ -257,16 +261,8 @@ class StaticAtomResource<A, E, Out> implements AtomValue<Promise<Out>> {
       };
 
       this.#stopSubscription = stop;
-      if (this.#prepared) {
-        // The read that follows in the same getter is covered, or sees the failed preparation.
-        try {
-          connect();
-        } catch (error) {
-          this.#failPreparation(error);
-        }
-      } else {
-        this.#connectWhenPrepared = connect;
-      }
+      // The read in the same getter connects, at once or after preparation.
+      this.#pendingConnection = connect;
       return stop;
     });
   }
@@ -304,10 +300,6 @@ class StaticAtomResource<A, E, Out> implements AtomValue<Promise<Out>> {
 
     try {
       this.#preparation = this.#makePreparation(signal).then(() => {
-        // Reads chain on this promise, so they run after the subscription is live.
-        const connect = this.#connectWhenPrepared;
-        this.#connectWhenPrepared = undefined;
-        connect?.();
         this.#prepared = true;
       });
     } catch (error) {
@@ -316,12 +308,16 @@ class StaticAtomResource<A, E, Out> implements AtomValue<Promise<Out>> {
     return this.#preparation;
   }
 
-  #failPreparation(error: unknown): void {
-    this.#prepared = false;
-    this.#preparation = Promise.reject(error);
-    this.#preparation.catch(() => {});
-    this.#pending.clear();
-    this.#stopWaiting();
+  #connect(): void {
+    const connect = this.#pendingConnection;
+    if (connect === undefined) {
+      return;
+    }
+    // If this throws, the connection stays pending and the next read retries it.
+    connect();
+    if (this.#pendingConnection === connect) {
+      this.#pendingConnection = undefined;
+    }
   }
 
   #stopWaiting(): void {
@@ -384,6 +380,7 @@ class StaticAtomResource<A, E, Out> implements AtomValue<Promise<Out>> {
 
   #readCurrent(signal: AbortSignal | undefined): Promise<Out> {
     try {
+      this.#connect();
       const result = BROWSER
         ? this.context.registry.get(this.atom)
         : (this.#serverResult ?? Atom.getServerValue(this.atom, this.context.registry));

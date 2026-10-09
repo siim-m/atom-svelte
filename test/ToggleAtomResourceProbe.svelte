@@ -19,8 +19,12 @@
     {#snippet pending()}
       <p data-testid="toggle-resource">pending</p>
     {/snippet}
-    {#snippet failed(error)}
+    {#snippet failed(error, reset)}
       <p data-testid="toggle-resource">failure:{String(error)}</p>
+      <button
+        data-testid="reset-resource"
+        onclick={reset}>reset</button
+      >
     {/snippet}
   </svelte:boundary>
 {:else}
