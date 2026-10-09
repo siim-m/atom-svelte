@@ -105,8 +105,8 @@ const getTransferredResource = (
 };
 
 // Browser preparations by registry and hydration key. A provider that remounts with the same
-// registry reuses them, so it waits for a transfer still in flight instead of starting a query, and
-// a transfer never applies twice. The server keeps one map per provider, because each render must
+// registry reuses a pending or successful one, so it waits for a transfer still in flight instead of
+// starting a query, and a transfer never applies twice. The server keeps one map per provider, because each render must
 // call `hydratable` to include its transfer.
 const browserPreparations = new WeakMap<AtomRegistry.AtomRegistry, Map<string, Promise<void>>>();
 
@@ -152,6 +152,13 @@ export const makeResourceHydration = (
         }
       });
       preparations.set(hydrationKey, preparation);
+      // Share only pending and successful preparations. After a failure, the next provider reads
+      // without the transfer, which this page load has already taken, and queries instead.
+      preparation.catch(() => {
+        if (preparations.get(hydrationKey) === preparation) {
+          preparations.delete(hydrationKey);
+        }
+      });
       return preparation;
     },
   };

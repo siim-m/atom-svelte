@@ -33,6 +33,9 @@
       {#snippet pending()}
         <p data-testid="resource-state">pending</p>
       {/snippet}
+      {#snippet failed(error)}
+        <p data-testid="resource-state">failure:{String(error)}</p>
+      {/snippet}
     </svelte:boundary>
   </RegistryProvider>
 {:else}

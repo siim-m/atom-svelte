@@ -757,4 +757,33 @@ describe("asynchronous atom bindings", () => {
     await unmount(component);
     registry.dispose();
   });
+  it("lets a remounted provider query after a failed server transfer", async () => {
+    let clientRuns = 0;
+    const query: Effect.Effect<string, string> = Effect.sync(() => {
+      clientRuns += 1;
+      return "client";
+    });
+    const atom = Atom.make(query).pipe(
+      Atom.serializable({ key: "failed-transfer", schema: resultSchema }),
+      Atom.keepAlive,
+    );
+    addResourceTransfer("failed-transfer-scope", "failed-transfer", Promise.resolve({}));
+    const registry = AtomRegistry.make();
+    const component = mount(RemountedProviderApp, {
+      target: document.body,
+      props: { registry, atom, hydrationScope: "failed-transfer-scope" },
+    });
+    await pollUntil(() => text("resource-state")?.startsWith("failure:") === true, flushStep);
+    expect(text("resource-state")).toContain("Invalid Svelte hydratable state");
+
+    click("toggle-provider");
+    await pollUntil(() => text("resource-state") === "hidden", flushStep);
+    click("toggle-provider");
+    await pollUntil(() => text("resource-state") === "success:client", flushStep);
+    expect(text("resource-state")).toBe("success:client");
+    expect(clientRuns).toBe(1);
+
+    await unmount(component);
+    registry.dispose();
+  });
 });
