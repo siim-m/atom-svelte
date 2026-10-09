@@ -62,17 +62,28 @@ const addResourceTransfer = (
 };
 
 /** Makes the next preparation of a serializable resource wait for a server transfer. */
-const holdResourceTransfer = (hydrationScope: string, serializationKey: string): (() => void) => {
-  let release = (): void => {};
+const holdResourceTransfer = (
+  hydrationScope: string,
+  serializationKey: string,
+): ((entry?: unknown) => void) => {
+  let release = (_entry?: unknown): void => {};
   addResourceTransfer(
     hydrationScope,
     serializationKey,
-    new Promise<undefined>((resolve) => {
-      release = () => resolve(undefined);
+    new Promise<unknown>((resolve) => {
+      release = resolve;
     }),
   );
   return release;
 };
+
+/** A dehydrated value as the server transfers it. */
+const transferEntry = (key: string, value: unknown) => ({
+  "~effect/reactivity/Hydration/DehydratedAtom": true,
+  key,
+  value,
+  dehydratedAt: Date.now(),
+});
 
 describe("asynchronous atom bindings", () => {
   it("reports write results and can cancel waiting without canceling atom execution", async () => {
@@ -678,12 +689,12 @@ describe("asynchronous atom bindings", () => {
     addResourceTransfer(
       "remount-scope",
       "remounted-resource",
-      Promise.resolve({
-        "~effect/reactivity/Hydration/DehydratedAtom": true,
-        key: "remounted-resource",
-        value: atom[Atom.SerializableTypeId].encode(AsyncResult.success("server")),
-        dehydratedAt: Date.now(),
-      }),
+      Promise.resolve(
+        transferEntry(
+          "remounted-resource",
+          atom[Atom.SerializableTypeId].encode(AsyncResult.success("server")),
+        ),
+      ),
     );
     const registry = AtomRegistry.make();
     const component = mount(RemountedProviderApp, {
@@ -702,6 +713,46 @@ describe("asynchronous atom bindings", () => {
     await pollUntil(() => text("resource-state") === "success:newer", flushStep);
     await pollUntil(() => false, tickStep, 5);
     expect(text("resource-state")).toBe("success:newer");
+
+    await unmount(component);
+    registry.dispose();
+  });
+  it("shares a pending server transfer with a provider that remounts", async () => {
+    let clientRuns = 0;
+    const query: Effect.Effect<string, string> = Effect.sync(() => {
+      clientRuns += 1;
+      return "client";
+    });
+    const atom = Atom.make(query).pipe(
+      Atom.serializable({ key: "pending-remount", schema: resultSchema }),
+      Atom.keepAlive,
+    );
+    const releaseTransfer = holdResourceTransfer("pending-remount-scope", "pending-remount");
+    const registry = AtomRegistry.make();
+    const component = mount(RemountedProviderApp, {
+      target: document.body,
+      props: { registry, atom, hydrationScope: "pending-remount-scope" },
+    });
+    flushSync();
+    await pollUntil(() => false, tickStep, 5);
+    expect(text("resource-state")).toBe("pending");
+
+    click("toggle-provider");
+    await pollUntil(() => text("resource-state") === "hidden", tickStep);
+    click("toggle-provider");
+    await pollUntil(() => false, tickStep, 5);
+    // The remounted provider waits for the transfer instead of starting a client query.
+    expect(text("resource-state")).toBe("pending");
+
+    releaseTransfer(
+      transferEntry(
+        "pending-remount",
+        atom[Atom.SerializableTypeId].encode(AsyncResult.success("server")),
+      ),
+    );
+    await pollUntil(() => text("resource-state") === "success:server", flushStep);
+    expect(text("resource-state")).toBe("success:server");
+    expect(clientRuns).toBe(0);
 
     await unmount(component);
     registry.dispose();

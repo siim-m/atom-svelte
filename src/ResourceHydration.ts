@@ -69,9 +69,10 @@ const appliedTransfers = new WeakMap<Map<unknown, unknown>, Set<string>>();
  * then miss its transfer and run its query again on the client. Svelte keeps the map for the whole
  * page, so this reads it without the flag. Remove this when `hydratable` works after an `await`.
  *
- * Because the map outlives hydration, each transfer applies at most once per page load. Otherwise a
- * provider that mounts later with the same registry would write the first page load's server
- * values over newer data.
+ * Because the map outlives hydration, each transfer is taken at most once per page load. Otherwise
+ * a provider that mounts later would apply the first page load's server values over newer data. A
+ * provider that remounts with the same registry shares the earlier preparation instead (see
+ * `browserPreparations`).
  */
 const getTransferredResource = (
   hydrationKey: string,
@@ -103,25 +104,43 @@ const getTransferredResource = (
   });
 };
 
+// Browser preparations by registry and hydration key. A provider that remounts with the same
+// registry reuses them, so it waits for a transfer still in flight instead of starting a query, and
+// a transfer never applies twice. The server keeps one map per provider, because each render must
+// call `hydratable` to include its transfer.
+const browserPreparations = new WeakMap<AtomRegistry.AtomRegistry, Map<string, Promise<void>>>();
+
+const getPreparations = (registry: AtomRegistry.AtomRegistry): Map<string, Promise<void>> => {
+  if (!BROWSER) {
+    return new Map();
+  }
+  let preparations = browserPreparations.get(registry);
+  if (preparations === undefined) {
+    preparations = new Map();
+    browserPreparations.set(registry, preparations);
+  }
+  return preparations;
+};
+
 export const makeResourceHydration = (
   hydrationScopeId: string,
   registry: AtomRegistry.AtomRegistry,
 ): ResourceHydration => {
-  const preparations = new Map<string, Promise<void>>();
+  const preparations = getPreparations(registry);
 
   return {
     register: (serializationKey, atom, makeTransfer) => {
       registerSerializableAtom(registry, serializationKey, atom);
 
-      const existing = preparations.get(serializationKey);
-      if (existing !== undefined) {
-        return existing;
-      }
-
       const hydrationKey = `${resourceHydrationKeyPrefix}${JSON.stringify([
         hydrationScopeId,
         serializationKey,
       ])}`;
+      const existing = preparations.get(hydrationKey);
+      if (existing !== undefined) {
+        return existing;
+      }
+
       const transfer =
         getTransferredResource(hydrationKey) ??
         hydratable<Promise<Hydration.DehydratedAtomValue | undefined>>(hydrationKey, () =>
@@ -132,7 +151,7 @@ export const makeResourceHydration = (
           hydrateRegistry(registry, [entry]);
         }
       });
-      preparations.set(serializationKey, preparation);
+      preparations.set(hydrationKey, preparation);
       return preparation;
     },
   };
