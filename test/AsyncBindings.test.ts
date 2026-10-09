@@ -15,6 +15,7 @@ import DynamicAtomResourceApp from "./DynamicAtomResourceApp.svelte";
 import NavigationResourceApp from "./NavigationResourceApp.svelte";
 import { flushStep, pollUntil, tickStep } from "./Poll.ts";
 import PromiseModesApp from "./PromiseModesApp.svelte";
+import RemountedProviderApp from "./RemountedProviderApp.svelte";
 import ResultModeResourceApp from "./ResultModeResourceApp.svelte";
 import ResumedResourceReadersApp from "./ResumedResourceReadersApp.svelte";
 import SharedAtomResourceApp from "./SharedAtomResourceApp.svelte";
@@ -41,17 +42,35 @@ const makeSettledSerializableAtom = (
   );
 };
 
-/** Makes the next preparation of a serializable resource wait for a server transfer. */
-const holdResourceTransfer = (hydrationScope: string, serializationKey: string): (() => void) => {
-  let release = (): void => {};
-  const transfer = new Promise<undefined>((resolve) => {
-    release = () => resolve(undefined);
-  });
+/** Adds a server transfer to Svelte's hydration map, as a server-rendered page does. */
+const addResourceTransfer = (
+  hydrationScope: string,
+  serializationKey: string,
+  transfer: Promise<unknown>,
+): void => {
   const hydrationKey = `${resourceHydrationKeyPrefix}${JSON.stringify([
     hydrationScope,
     serializationKey,
   ])}`;
-  Reflect.set(window, "__svelte", { h: new Map([[hydrationKey, transfer]]) });
+  const state: unknown = Reflect.get(window, "__svelte");
+  const map: unknown = typeof state === "object" && state !== null ? Reflect.get(state, "h") : null;
+  if (map instanceof Map) {
+    map.set(hydrationKey, transfer);
+  } else {
+    Reflect.set(window, "__svelte", { h: new Map([[hydrationKey, transfer]]) });
+  }
+};
+
+/** Makes the next preparation of a serializable resource wait for a server transfer. */
+const holdResourceTransfer = (hydrationScope: string, serializationKey: string): (() => void) => {
+  let release = (): void => {};
+  addResourceTransfer(
+    hydrationScope,
+    serializationKey,
+    new Promise<undefined>((resolve) => {
+      release = () => resolve(undefined);
+    }),
+  );
   return release;
 };
 
@@ -619,5 +638,41 @@ describe("asynchronous atom bindings", () => {
     expect(text("toggle-resource")).toContain("registry is disposed");
 
     await unmount(component);
+  });
+  it("applies a server transfer once when a provider remounts with the same registry", async () => {
+    const atom = Atom.make<AsyncResult.AsyncResult<string, string>>(AsyncResult.initial()).pipe(
+      Atom.serializable({ key: "remounted-resource", schema: resultSchema }),
+      Atom.keepAlive,
+    );
+    addResourceTransfer(
+      "remount-scope",
+      "remounted-resource",
+      Promise.resolve({
+        "~effect/reactivity/Hydration/DehydratedAtom": true,
+        key: "remounted-resource",
+        value: atom[Atom.SerializableTypeId].encode(AsyncResult.success("server")),
+        dehydratedAt: Date.now(),
+      }),
+    );
+    const registry = AtomRegistry.make();
+    const component = mount(RemountedProviderApp, {
+      target: document.body,
+      props: { registry, atom, hydrationScope: "remount-scope" },
+    });
+    await pollUntil(() => text("resource-state") === "success:server", flushStep);
+    expect(text("resource-state")).toBe("success:server");
+
+    registry.set(atom, AsyncResult.success("newer"));
+    await pollUntil(() => text("resource-state") === "success:newer", flushStep);
+
+    click("toggle-provider");
+    await pollUntil(() => text("resource-state") === "hidden", flushStep);
+    click("toggle-provider");
+    await pollUntil(() => text("resource-state") === "success:newer", flushStep);
+    await pollUntil(() => false, tickStep, 5);
+    expect(text("resource-state")).toBe("success:newer");
+
+    await unmount(component);
+    registry.dispose();
   });
 });

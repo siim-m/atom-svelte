@@ -55,6 +55,24 @@ const registerSerializableAtom = (
   registered.set(serializationKey, atom);
 };
 
+// Hydration keys whose transfer was already applied, per Svelte hydration map. A page load creates a
+// new map, so this resets with each document.
+const appliedTransfers = new WeakMap<Map<unknown, unknown>, Set<string>>();
+
+/**
+ * Reads a server transfer directly from Svelte's hydration map.
+ *
+ * Svelte's `hydratable` reads this map only while its `hydrating` flag is set. In Svelte 5.56.8
+ * through 5.57.2, component code that resumes after a top-level `await` runs with that flag cleared:
+ * `capture()` in `svelte/src/internal/client/reactivity/async.js` restores the effect, reaction,
+ * component context and batch, but not `hydrating`. A resource first read after an `await` would
+ * then miss its transfer and run its query again on the client. Svelte keeps the map for the whole
+ * page, so this reads it without the flag. Remove this when `hydratable` works after an `await`.
+ *
+ * Because the map outlives hydration, each transfer applies at most once per page load. Otherwise a
+ * provider that mounts later with the same registry would write the first page load's server
+ * values over newer data.
+ */
 const getTransferredResource = (
   hydrationKey: string,
 ): Promise<Hydration.DehydratedAtomValue | undefined> | undefined => {
@@ -67,8 +85,16 @@ const getTransferredResource = (
     return undefined;
   }
 
-  // Svelte 5.56 keeps this map after its hydration flag clears. A later
-  // sequential await must still consume the transfer produced for its SSR node.
+  let applied = appliedTransfers.get(state.h);
+  if (applied === undefined) {
+    applied = new Set();
+    appliedTransfers.set(state.h, applied);
+  }
+  if (applied.has(hydrationKey)) {
+    return undefined;
+  }
+  applied.add(hydrationKey);
+
   return Promise.resolve(state.h.get(hydrationKey)).then((entry) => {
     if (entry === undefined || isDehydratedAtomValue(entry)) {
       return entry;
