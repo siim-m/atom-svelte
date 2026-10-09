@@ -3,28 +3,16 @@
   import type * as Atom from "effect/reactivity/Atom";
   import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
   import { RegistryProvider } from "../src/index.ts";
-  import ToggleAtomResourceProbe from "./ToggleAtomResourceProbe.svelte";
+  import ResumedResourceReaders from "./ResumedResourceReaders.svelte";
 
   interface Props {
     readonly registry: AtomRegistry.AtomRegistry;
     readonly atom: Atom.Atom<AsyncResult.AsyncResult<string, string>>;
-    readonly hydrationScope?: string | undefined;
   }
 
-  const { registry, atom, hydrationScope }: Props = $props();
-  let show = $state(true);
+  const { registry, atom }: Props = $props();
 </script>
 
-<RegistryProvider
-  {registry}
-  {hydrationScope}
->
-  <button
-    data-testid="toggle-show"
-    onclick={() => (show = !show)}>toggle</button
-  >
-  <ToggleAtomResourceProbe
-    {atom}
-    {show}
-  />
+<RegistryProvider {registry}>
+  <ResumedResourceReaders {atom} />
 </RegistryProvider>

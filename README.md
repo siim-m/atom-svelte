@@ -134,11 +134,17 @@ emissions. Do not write to that pull atom automatically to model latest-value st
 Options and behavior:
 
 - Use `$derived(await resource.current)` for reactive updates.
+- The resource re-runs a reaction only when the atom result changes after the reaction's read.
+  Mounting against an atom that already holds a result does not re-run it.
 - Top-level component `await` is also supported.
 - A refresh keeps the last success visible by default.
+- A refresh notifies twice: when it starts and when it settles. By default the first re-run resolves
+  to the last success, so the page does not change.
 - Set `suspendOnWaiting: true` to wait for a settled, non-waiting result.
 - A typed failure rejects with `Cause.squash` by default.
 - Use a `<svelte:boundary>` to handle a rejected async expression.
+- If the atom's read function throws, the read rejects with that error. The next read tries again,
+  so resetting the boundary recovers once the atom reads without throwing.
 - Set `includeFailure: true` to resolve with `AsyncResult.Success` or `AsyncResult.Failure`.
 
 A thunk input must return a stable atom:
@@ -175,6 +181,8 @@ Other rules:
 
 - A non-serializable atom has no automatic state transfer.
 - Use a unique Svelte `idPrefix` or provider `hydrationScope` for each separately rendered root.
+- A server transfer applies once per page load. A provider that mounts later keeps the registry's
+  current values.
 - For a strict Content Security Policy, give Svelte `render` a nonce or request script hashes.
 - Use `RegistryProvider.dehydratedState` or `HydrationBoundary` for general registry hydration.
 - Do not pass promise-mode `Hydration.dehydrate` output through Svelte `hydratable`.

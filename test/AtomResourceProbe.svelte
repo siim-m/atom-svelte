@@ -8,14 +8,19 @@
     readonly atom: Atom.Atom<AsyncResult.AsyncResult<string, string>>;
     readonly suspendOnWaiting?: boolean;
     readonly onReady: (getPromise: () => Promise<string>) => void;
+    readonly onEvaluate?: (() => void) | undefined;
   }
 
-  const { atom, suspendOnWaiting = false, onReady }: Props = $props();
+  const { atom, suspendOnWaiting = false, onReady, onEvaluate }: Props = $props();
   const resource = useAtomResource(() => atom, {
     suspendOnWaiting: untrack(() => suspendOnWaiting),
   });
   untrack(() => onReady(() => resource.current));
-  const value = $derived(await resource.current);
+  const read = () => {
+    onEvaluate?.();
+    return resource.current;
+  };
+  const value = $derived(await read());
 </script>
 
 <p data-testid="resource-state">success:{value}</p>

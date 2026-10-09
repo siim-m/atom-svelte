@@ -55,6 +55,25 @@ const registerSerializableAtom = (
   registered.set(serializationKey, atom);
 };
 
+// Hydration keys whose transfer was already applied, per Svelte hydration map. A page load creates a
+// new map, so this resets with each document.
+const appliedTransfers = new WeakMap<Map<unknown, unknown>, Set<string>>();
+
+/**
+ * Reads a server transfer directly from Svelte's hydration map.
+ *
+ * Svelte's `hydratable` reads this map only while its `hydrating` flag is set. In Svelte 5.56.8
+ * through 5.57.2, component code that resumes after a top-level `await` runs with that flag cleared:
+ * `capture()` in `svelte/src/internal/client/reactivity/async.js` restores the effect, reaction,
+ * component context and batch, but not `hydrating`. A resource first read after an `await` would
+ * then miss its transfer and run its query again on the client. Svelte keeps the map for the whole
+ * page, so this reads it without the flag. Remove this when `hydratable` works after an `await`.
+ *
+ * Because the map outlives hydration, each transfer is taken at most once per page load. Otherwise
+ * a provider that mounts later would apply the first page load's server values over newer data. A
+ * provider that remounts with the same registry shares the earlier preparation instead (see
+ * `browserPreparations`).
+ */
 const getTransferredResource = (
   hydrationKey: string,
 ): Promise<Hydration.DehydratedAtomValue | undefined> | undefined => {
@@ -67,8 +86,16 @@ const getTransferredResource = (
     return undefined;
   }
 
-  // Svelte 5.56 keeps this map after its hydration flag clears. A later
-  // sequential await must still consume the transfer produced for its SSR node.
+  let applied = appliedTransfers.get(state.h);
+  if (applied === undefined) {
+    applied = new Set();
+    appliedTransfers.set(state.h, applied);
+  }
+  if (applied.has(hydrationKey)) {
+    return undefined;
+  }
+  applied.add(hydrationKey);
+
   return Promise.resolve(state.h.get(hydrationKey)).then((entry) => {
     if (entry === undefined || isDehydratedAtomValue(entry)) {
       return entry;
@@ -77,25 +104,43 @@ const getTransferredResource = (
   });
 };
 
+// Browser preparations by registry and hydration key. A provider that remounts with the same
+// registry reuses a pending or successful one, so it waits for a transfer still in flight instead of
+// starting a query, and a transfer never applies twice. The server keeps one map per provider, because each render must
+// call `hydratable` to include its transfer.
+const browserPreparations = new WeakMap<AtomRegistry.AtomRegistry, Map<string, Promise<void>>>();
+
+const getPreparations = (registry: AtomRegistry.AtomRegistry): Map<string, Promise<void>> => {
+  if (!BROWSER) {
+    return new Map();
+  }
+  let preparations = browserPreparations.get(registry);
+  if (preparations === undefined) {
+    preparations = new Map();
+    browserPreparations.set(registry, preparations);
+  }
+  return preparations;
+};
+
 export const makeResourceHydration = (
   hydrationScopeId: string,
   registry: AtomRegistry.AtomRegistry,
 ): ResourceHydration => {
-  const preparations = new Map<string, Promise<void>>();
+  const preparations = getPreparations(registry);
 
   return {
     register: (serializationKey, atom, makeTransfer) => {
       registerSerializableAtom(registry, serializationKey, atom);
 
-      const existing = preparations.get(serializationKey);
-      if (existing !== undefined) {
-        return existing;
-      }
-
       const hydrationKey = `${resourceHydrationKeyPrefix}${JSON.stringify([
         hydrationScopeId,
         serializationKey,
       ])}`;
+      const existing = preparations.get(hydrationKey);
+      if (existing !== undefined) {
+        return existing;
+      }
+
       const transfer =
         getTransferredResource(hydrationKey) ??
         hydratable<Promise<Hydration.DehydratedAtomValue | undefined>>(hydrationKey, () =>
@@ -106,7 +151,14 @@ export const makeResourceHydration = (
           hydrateRegistry(registry, [entry]);
         }
       });
-      preparations.set(serializationKey, preparation);
+      preparations.set(hydrationKey, preparation);
+      // Share only pending and successful preparations. After a failure, the next provider reads
+      // without the transfer, which this page load has already taken, and queries instead.
+      preparation.catch(() => {
+        if (preparations.get(hydrationKey) === preparation) {
+          preparations.delete(hydrationKey);
+        }
+      });
       return preparation;
     },
   };

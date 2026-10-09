@@ -7,6 +7,24 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.1-alpha.3] - 2026-10-09
+
+### Changed
+
+- Updated the development dependency to Effect `4.0.2`. The peer dependency range stays `^4.0.0`.
+
+### Fixed
+
+- `useAtomResource` no longer re-runs an awaiting reaction when it mounts against, or switches to,
+  an atom that already holds a result. During client navigation, the extra re-run could trigger
+  Svelte's development invariant `Batch has scheduled roots`.
+- A reader that resumed before its resource subscription connected no longer keeps an older result
+  after the atom changes.
+- A `RegistryProvider` that remounts with the same registry no longer applies the first page
+  load's server values over newer data.
+- A resource whose atom threw while it connected now retries on its next read. Before, every later
+  read rejected until the component remounted.
+
 ## [0.0.1-alpha.2] - 2026-10-03
 
 ### Changed
@@ -33,7 +51,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Server rendering and automatic Svelte hydration for serializable resources.
 - Scoped registries, hydration boundaries, and scoped atom contexts.
 
-[Unreleased]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.2...HEAD
+[Unreleased]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.3...HEAD
+[0.0.1-alpha.3]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.2...v0.0.1-alpha.3
 [0.0.1-alpha.2]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.1...v0.0.1-alpha.2
 [0.0.1-alpha.1]: https://github.com/siim-m/atom-svelte/compare/0f8e0039d7ee270b3ac5c5a572260979585e0d88...v0.0.1-alpha.1
 [0.0.1-alpha.0]: https://github.com/siim-m/atom-svelte/releases/tag/v0.0.1-alpha.0
