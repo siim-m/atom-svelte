@@ -9,6 +9,10 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.0.1-alpha.3] - 2026-10-09
 
+### Changed
+
+- Updated the development dependency to Effect `4.0.2`. The peer dependency range stays `^4.0.0`.
+
 ### Fixed
 
 - `useAtomResource` no longer re-runs an awaiting reaction when it mounts against, or switches to,
@@ -16,6 +20,10 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Svelte's development invariant `Batch has scheduled roots`.
 - A reader that resumed before its resource subscription connected no longer keeps an older result
   after the atom changes.
+- A `RegistryProvider` that remounts with the same registry no longer applies the first page
+  load's server values over newer data.
+- A resource whose atom threw while it connected now retries on its next read. Before, every later
+  read rejected until the component remounted.
 
 ## [0.0.1-alpha.2] - 2026-10-03
 
