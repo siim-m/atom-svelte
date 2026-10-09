@@ -1,6 +1,6 @@
 {
   "name": "@siim-m/atom-svelte",
-  "version": "0.0.1-alpha.2",
+  "version": "0.0.1-alpha.3",
   "description": "Svelte 5 bindings for Effect's Atom reactivity modules.",
   "keywords": [
     "atom",
