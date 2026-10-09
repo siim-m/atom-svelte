@@ -134,8 +134,8 @@ emissions. Do not write to that pull atom automatically to model latest-value st
 Options and behavior:
 
 - Use `$derived(await resource.current)` for reactive updates.
-- A reaction re-runs only when the atom result changes after its read. Mounting against an atom
-  that already holds a result does not re-run it.
+- The resource re-runs a reaction only when the atom result changes after the reaction's read.
+  Mounting against an atom that already holds a result does not re-run it.
 - Top-level component `await` is also supported.
 - A refresh keeps the last success visible by default.
 - Set `suspendOnWaiting: true` to wait for a settled, non-waiting result.

@@ -241,7 +241,7 @@ class StaticAtomResource<A, E, Out> implements AtomValue<Promise<Out>> {
     this.#subscribe = createSubscriber((update) => {
       let unsubscribe: (() => void) | undefined;
       const connect = (): void => {
-        // Consume initialization notifications before Svelte tracks the subscription.
+        // Consume initialization notifications before attaching the registry listener.
         this.context.registry.get(this.atom);
         unsubscribe = this.context.registry.subscribe(this.atom, update);
       };
