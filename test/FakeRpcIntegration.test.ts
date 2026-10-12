@@ -4,7 +4,7 @@ import * as Ref from "effect/Ref";
 import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { flushSync, mount, tick, unmount } from "svelte";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AtomPromiseSet } from "../src/index.ts";
+import type { AtomPromiseSetter } from "../src/index.ts";
 import FakeRpcApp from "./FakeRpcApp.svelte";
 import { countReactivityKeys, makeFakeRpc, type SetCountInput } from "./FakeRpc.ts";
 import { flushUntilText } from "./Poll.ts";
@@ -18,14 +18,14 @@ describe("fake RPC integration", () => {
   it("runs query and mutation atoms through the public Svelte bindings", async () => {
     const fake = makeFakeRpc();
     const registry = AtomRegistry.make();
-    let mutation: AtomPromiseSet<number, SetCountInput> | undefined;
+    let mutation: AtomPromiseSetter<number, SetCountInput> | undefined;
     const component = mount(FakeRpcApp, {
       target: document.body,
       props: {
         registry,
         queryAtom: fake.queryAtom,
         mutationAtom: fake.mutationAtom,
-        onReady: (ready: AtomPromiseSet<number, SetCountInput>) => {
+        onReady: (ready: AtomPromiseSetter<number, SetCountInput>) => {
           mutation = ready;
         },
       },
@@ -42,7 +42,7 @@ describe("fake RPC integration", () => {
     await flushUntilText("query-state", "Success:false:1");
     expect(await Effect.runPromise(Ref.get(fake.queryRuns))).toBe(1);
 
-    const setCount = mutation.set({
+    const setCount = mutation({
       payload: { value: 2 },
       reactivityKeys: countReactivityKeys,
     });
@@ -60,7 +60,7 @@ describe("fake RPC integration", () => {
     expect(await Effect.runPromise(Ref.get(fake.queryRuns))).toBe(2);
 
     await expect(
-      mutation.set({
+      mutation({
         payload: { value: -1 },
         reactivityKeys: countReactivityKeys,
       }),

@@ -7,6 +7,28 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** setters are now plain functions, as in Effect's React, Vue, and Solid bindings.
+  `useAtomSet` returns the setter itself. `useAtom` returns `{ current, set }`, and `set` takes a
+  value or an updater function. `update` is removed: write `set((value) => next)`.
+- **Breaking:** a setter for an atom whose write type includes a function accepts only updaters,
+  because a function argument is an updater. To store a function, assign `current` or write
+  `set(() => fn)`.
+- **Breaking:** promise-mode and promise-exit-mode setters no longer accept `Atom.Reset`. A reset
+  left the returned promise pending.
+- **Breaking:** renamed the setter types. `AtomValueSet`, `AtomPromiseSet`, and
+  `AtomPromiseExitSet` are now `AtomValueSetter`, `AtomPromiseSetter`, and `AtomPromiseExitSetter`.
+  `AtomSet` is now `AtomSetter`.
+
+### Added
+
+- `useAtom` has an assignable `current` when every value the atom reads can be written back, so
+  `bind:value={query.current}` and `query.current = next` write the atom. Before, `bind:` passed
+  type checking and then threw on the first input. The binding type is `WritableAtomBinding`.
+- Assigning `current` on a promise-mode `useAtom` binding throws an error that names the mode and
+  points to `set`.
+
 ## [0.0.1-alpha.4] - 2026-10-12
 
 ### Fixed

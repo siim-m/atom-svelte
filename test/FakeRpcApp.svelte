@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AtomPromiseSet } from "../src/index.ts";
+  import type { AtomPromiseSetter } from "../src/index.ts";
   import { RegistryProvider } from "../src/index.ts";
   import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
   import type { makeFakeRpc, SetCountInput } from "./FakeRpc.ts";
@@ -11,7 +11,7 @@
     readonly registry: AtomRegistry.AtomRegistry;
     readonly queryAtom: FakeRpc["queryAtom"];
     readonly mutationAtom: FakeRpc["mutationAtom"];
-    readonly onReady: (mutation: AtomPromiseSet<number, SetCountInput>) => void;
+    readonly onReady: (mutation: AtomPromiseSetter<number, SetCountInput>) => void;
   }
 
   const { registry, queryAtom, mutationAtom, onReady }: Props = $props();

@@ -125,17 +125,23 @@ describe("asynchronous atom bindings", () => {
     expect(text("result-tag")).toBe("Initial");
     expect(text("result-waiting")).toBe("true");
 
+    expect(() => {
+      // @ts-expect-error A promise-mode binding has a read-only current.
+      api.promise.current = AsyncResult.initial();
+    }).toThrow("current is read-only in promise mode. Call set(value) to write the atom.");
+    expect(text("result-tag")).toBe("Initial");
+
     resolveSuccess?.("done");
     await expect(success).resolves.toBe("done");
     await tick();
     expect(text("result-tag")).toBe("Success");
 
     await expect(api.promise.set({ kind: "failure" })).rejects.toBe("failed");
-    const failureExit = await api.promiseExit.set({ kind: "failure" });
+    const failureExit = await api.promiseExit({ kind: "failure" });
     expect(Exit.isFailure(failureExit)).toBe(true);
 
     const controller = new AbortController();
-    const interrupted = api.promiseExit.set({ kind: "never" }, { signal: controller.signal });
+    const interrupted = api.promiseExit({ kind: "never" }, { signal: controller.signal });
     controller.abort();
     const interruptedExit = await interrupted;
     expect(Exit.isFailure(interruptedExit)).toBe(true);

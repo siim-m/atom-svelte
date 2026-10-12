@@ -12,7 +12,7 @@
 
   const { mountedAtom, writableAtom, refreshableAtom, subscribedAtom, onValue }: Props = $props();
   useAtomMount(() => mountedAtom);
-  const writable = useAtomSet(() => writableAtom);
+  const write = useAtomSet(() => writableAtom);
   const refresh = useAtomRefresh(() => refreshableAtom);
   useAtomSubscribe(
     () => subscribedAtom,
@@ -23,11 +23,11 @@
 
 <button
   data-testid="write-set"
-  onclick={() => writable.set(10)}>set</button
+  onclick={() => write(10)}>set</button
 >
 <button
   data-testid="write-update"
-  onclick={() => writable.update((value) => value + 1)}>update</button
+  onclick={() => write((value) => value + 1)}>update</button
 >
 <button
   data-testid="refresh"

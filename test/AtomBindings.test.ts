@@ -2,10 +2,22 @@ import * as Atom from "effect/reactivity/Atom";
 import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { flushSync, mount, tick, unmount } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import AssignableAtomApp from "./AssignableAtomApp.svelte";
 import AtomBindingsApp from "./AtomBindingsApp.svelte";
 import DynamicAtomApp from "./DynamicAtomApp.svelte";
 import LifecycleApp from "./LifecycleApp.svelte";
-import { click, text } from "./TestDom.ts";
+import { click, enterText, inputValue, text } from "./TestDom.ts";
+
+// Atom.make treats a function argument as a read function, so store the function in an object.
+const makeFunctionAtom = (): Atom.Writable<() => string> => {
+  const functionState = Atom.make<{ readonly value: () => string }>({
+    value: () => "initial function",
+  });
+  return Atom.writable(
+    (get) => get(functionState).value,
+    (context, value: () => string) => context.set(functionState, { value }),
+  );
+};
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -16,13 +28,7 @@ describe("atom bindings", () => {
   it("uses an external registry for reads, selectors, writes, and function values", async () => {
     const registry = AtomRegistry.make();
     const counterAtom = Atom.make({ count: 1, label: "initial" });
-    const functionState = Atom.make<{ readonly value: () => string }>({
-      value: () => "initial function",
-    });
-    const functionAtom = Atom.writable(
-      (get) => get(functionState).value,
-      (context, value: () => string) => context.set(functionState, { value }),
-    );
+    const functionAtom = makeFunctionAtom();
     const component = mount(AtomBindingsApp, {
       target: document.body,
       props: { registry, counterAtom, functionAtom },
@@ -50,6 +56,37 @@ describe("atom bindings", () => {
     click("set-function");
     expect(registry.get(functionAtom)()).toBe("stored");
     expect(text("function-value")).toBe("stored");
+
+    await unmount(component);
+    registry.dispose();
+  });
+
+  it("writes through an assignable current, including bind:value and function values", async () => {
+    const registry = AtomRegistry.make();
+    const queryAtom = Atom.make("initial");
+    const functionAtom = makeFunctionAtom();
+    const component = mount(AssignableAtomApp, {
+      target: document.body,
+      props: { registry, queryAtom, functionAtom },
+    });
+    flushSync();
+    expect(inputValue("query")).toBe("initial");
+
+    await enterText("query", "typed");
+    expect(registry.get(queryAtom)).toBe("typed");
+    expect(text("query-value")).toBe("typed");
+
+    registry.set(queryAtom, "external");
+    flushSync();
+    expect(inputValue("query")).toBe("external");
+
+    click("clear");
+    expect(registry.get(queryAtom)).toBe("");
+    expect(inputValue("query")).toBe("");
+
+    click("assign-function");
+    expect(registry.get(functionAtom)()).toBe("assigned");
+    expect(text("function-value")).toBe("assigned");
 
     await unmount(component);
     registry.dispose();
