@@ -28,7 +28,24 @@ const isDehydratedAtomValue = (value: unknown): value is Hydration.DehydratedAto
   typeof Reflect.get(value, "key") === "string" &&
   typeof Reflect.get(value, "dehydratedAt") === "number";
 
-const serializableAtoms = new WeakMap<AtomRegistry.AtomRegistry, Map<string, object>>();
+// The atom read under each serialization key, per registry. Entries hold atoms weakly: a registry
+// that evicts an idle atom must let it be collected, as `Atom.family` expects. A key whose atom was
+// collected accepts a new atom.
+const serializableAtoms = new WeakMap<AtomRegistry.AtomRegistry, Map<string, WeakRef<object>>>();
+
+interface SerializableAtomEntry {
+  readonly registered: Map<string, WeakRef<object>>;
+  readonly serializationKey: string;
+  readonly ref: WeakRef<object>;
+}
+
+const collectedAtoms = new FinalizationRegistry<SerializableAtomEntry>(
+  ({ registered, serializationKey, ref }) => {
+    if (registered.get(serializationKey) === ref) {
+      registered.delete(serializationKey);
+    }
+  },
+);
 
 const registerSerializableAtom = (
   registry: AtomRegistry.AtomRegistry,
@@ -41,7 +58,7 @@ const registerSerializableAtom = (
     serializableAtoms.set(registry, registered);
   }
 
-  const previous = registered.get(serializationKey);
+  const previous = registered.get(serializationKey)?.deref();
   const existingNode = registry.getNodes().get(serializationKey);
   if (
     (previous !== undefined && previous !== atom) ||
@@ -51,8 +68,13 @@ const registerSerializableAtom = (
       `Duplicate Effect Atom serialization key ${JSON.stringify(serializationKey)} for different atom objects`,
     );
   }
+  if (previous === atom) {
+    return;
+  }
 
-  registered.set(serializationKey, atom);
+  const ref = new WeakRef(atom);
+  registered.set(serializationKey, ref);
+  collectedAtoms.register(atom, { registered, serializationKey, ref });
 };
 
 // Hydration keys whose transfer was already applied, per Svelte hydration map. A page load creates a
@@ -105,9 +127,9 @@ const getTransferredResource = (
 };
 
 // Browser preparations by registry and hydration key. A provider that remounts with the same
-// registry reuses a pending or successful one, so it waits for a transfer still in flight instead of
-// starting a query, and a transfer never applies twice. The server keeps one map per provider, because each render must
-// call `hydratable` to include its transfer.
+// registry reuses a pending one or one that applied a transfer, so it waits for a transfer still in
+// flight instead of starting a query, and a transfer never applies twice. The server keeps one map
+// per provider, because each render must call `hydratable` to include its transfer.
 const browserPreparations = new WeakMap<AtomRegistry.AtomRegistry, Map<string, Promise<void>>>();
 
 const getPreparations = (registry: AtomRegistry.AtomRegistry): Map<string, Promise<void>> => {
@@ -146,19 +168,27 @@ export const makeResourceHydration = (
         hydratable<Promise<Hydration.DehydratedAtomValue | undefined>>(hydrationKey, () =>
           BROWSER ? Promise.resolve(undefined) : makeTransfer(),
         );
+      const forget = (): void => {
+        if (preparations.get(hydrationKey) === preparation) {
+          preparations.delete(hydrationKey);
+        }
+      };
       const preparation = transfer.then((entry) => {
-        if (BROWSER && entry !== undefined) {
+        if (!BROWSER) {
+          return;
+        }
+        if (entry === undefined) {
+          forget();
+        } else {
           hydrateRegistry(registry, [entry]);
         }
       });
       preparations.set(hydrationKey, preparation);
-      // Share only pending and successful preparations. After a failure, the next provider reads
-      // without the transfer, which this page load has already taken, and queries instead.
-      preparation.catch(() => {
-        if (preparations.get(hydrationKey) === preparation) {
-          preparations.delete(hydrationKey);
-        }
-      });
+      // The browser shares pending preparations and those that applied a transfer, which a page load
+      // has a fixed number of. One that found no transfer is dropped, so a long-lived registry does
+      // not keep an entry for every key it reads. After a failure, the next provider reads without
+      // the transfer, which this page load has already taken, and queries instead.
+      preparation.catch(forget);
       return preparation;
     },
   };

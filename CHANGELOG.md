@@ -7,6 +7,15 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A serializable atom read through `useAtomResource` can now be garbage collected after its registry
+  evicts it. Before, the package held every such atom for the registry's lifetime, so idle-TTL
+  eviction never freed `Atom.family` members and a long-lived browser registry grew with every key
+  it read. Reading two different live atoms under one serialization key still throws.
+- A browser registry no longer keeps a hydration entry for every resource key it reads without a
+  server transfer.
+
 ## [0.0.1-alpha.3] - 2026-10-09
 
 ### Changed

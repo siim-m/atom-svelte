@@ -8,6 +8,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // Retention tests force garbage collection to observe that an atom was freed.
+    execArgv: ["--expose-gc"],
     include: ["test/**/*.test.ts"],
     exclude: ["test/**/*.ssr.test.ts", "test/async-disabled/**/*.test.ts"],
   },
