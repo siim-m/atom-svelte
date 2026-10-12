@@ -7,6 +7,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.1-alpha.4] - 2026-10-12
+
 ### Fixed
 
 - A serializable atom read through `useAtomResource` can now be garbage collected after its registry
@@ -60,7 +62,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Server rendering and automatic Svelte hydration for serializable resources.
 - Scoped registries, hydration boundaries, and scoped atom contexts.
 
-[Unreleased]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.3...HEAD
+[Unreleased]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.4...HEAD
+[0.0.1-alpha.4]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.3...v0.0.1-alpha.4
 [0.0.1-alpha.3]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.2...v0.0.1-alpha.3
 [0.0.1-alpha.2]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.1...v0.0.1-alpha.2
 [0.0.1-alpha.1]: https://github.com/siim-m/atom-svelte/compare/0f8e0039d7ee270b3ac5c5a572260979585e0d88...v0.0.1-alpha.1
