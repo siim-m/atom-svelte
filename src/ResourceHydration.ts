@@ -28,24 +28,52 @@ const isDehydratedAtomValue = (value: unknown): value is Hydration.DehydratedAto
   typeof Reflect.get(value, "key") === "string" &&
   typeof Reflect.get(value, "dehydratedAt") === "number";
 
-// The atom read under each serialization key, per registry. Entries hold atoms weakly: a registry
-// that evicts an idle atom must let it be collected, as `Atom.family` expects. A key whose atom was
-// collected accepts a new atom.
-const serializableAtoms = new WeakMap<AtomRegistry.AtomRegistry, Map<string, WeakRef<object>>>();
+const holdsAtomsWeakly =
+  typeof WeakRef !== "undefined" && typeof FinalizationRegistry !== "undefined";
 
-interface SerializableAtomEntry {
-  readonly registered: Map<string, WeakRef<object>>;
+interface HeldAtom {
+  deref(): object | undefined;
+}
+
+interface CollectedAtom {
   readonly serializationKey: string;
   readonly ref: WeakRef<object>;
 }
 
-const collectedAtoms = new FinalizationRegistry<SerializableAtomEntry>(
-  ({ registered, serializationKey, ref }) => {
-    if (registered.get(serializationKey) === ref) {
-      registered.delete(serializationKey);
+/**
+ * The atom read under each serialization key in one registry.
+ *
+ * Entries hold atoms weakly: a registry that evicts an idle atom must let it be collected, as
+ * `Atom.family` expects, and a key whose atom was collected accepts a new atom. Each instance owns
+ * its finalizer, so a collected registry takes its entries with it even while their atoms live on.
+ * Without weak references, entries hold atoms strongly, as `Atom.family` does in such a runtime.
+ */
+class SerializableAtoms {
+  readonly #entries = new Map<string, HeldAtom>();
+  readonly #collected = holdsAtomsWeakly
+    ? new FinalizationRegistry<CollectedAtom>(({ serializationKey, ref }) => {
+        if (this.#entries.get(serializationKey) === ref) {
+          this.#entries.delete(serializationKey);
+        }
+      })
+    : undefined;
+
+  get(serializationKey: string): object | undefined {
+    return this.#entries.get(serializationKey)?.deref();
+  }
+
+  set(serializationKey: string, atom: object): void {
+    if (this.#collected === undefined) {
+      this.#entries.set(serializationKey, { deref: () => atom });
+      return;
     }
-  },
-);
+    const ref = new WeakRef(atom);
+    this.#entries.set(serializationKey, ref);
+    this.#collected.register(atom, { serializationKey, ref });
+  }
+}
+
+const serializableAtoms = new WeakMap<AtomRegistry.AtomRegistry, SerializableAtoms>();
 
 const registerSerializableAtom = (
   registry: AtomRegistry.AtomRegistry,
@@ -54,11 +82,11 @@ const registerSerializableAtom = (
 ): void => {
   let registered = serializableAtoms.get(registry);
   if (registered === undefined) {
-    registered = new Map();
+    registered = new SerializableAtoms();
     serializableAtoms.set(registry, registered);
   }
 
-  const previous = registered.get(serializationKey)?.deref();
+  const previous = registered.get(serializationKey);
   const existingNode = registry.getNodes().get(serializationKey);
   if (
     (previous !== undefined && previous !== atom) ||
@@ -68,13 +96,9 @@ const registerSerializableAtom = (
       `Duplicate Effect Atom serialization key ${JSON.stringify(serializationKey)} for different atom objects`,
     );
   }
-  if (previous === atom) {
-    return;
+  if (previous !== atom) {
+    registered.set(serializationKey, atom);
   }
-
-  const ref = new WeakRef(atom);
-  registered.set(serializationKey, ref);
-  collectedAtoms.register(atom, { registered, serializationKey, ref });
 };
 
 // Hydration keys whose transfer was already applied, per Svelte hydration map. A page load creates a

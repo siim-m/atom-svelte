@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
 import * as AtomRegistry from "effect/reactivity/AtomRegistry";
+import { queryObjects } from "node:v8";
 import { mount, unmount } from "svelte";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeResourceHydration, type ResourceHydration } from "../src/ResourceHydration.ts";
@@ -150,5 +151,27 @@ describe("atom resource retention", () => {
     await collectGarbage(() => preparation.deref() === undefined);
     expect(preparation.deref()).toBeUndefined();
     registry.dispose();
+  });
+
+  it("releases a collected registry's bookkeeping for an atom that outlives it", async () => {
+    // A module-scope atom, read by a fresh registry per server request.
+    const atom = makeSeriesFamily()("acme");
+    const readInFreshRegistry = async (): Promise<void> => {
+      const registry = makeRegistry();
+      expect(await readThroughResource(registry, atom)).toBe("series of acme");
+      registry.dispose();
+    };
+    // Counts the weak references the package keeps per registry and key.
+    const countWeakRefs = (): number => queryObjects(WeakRef, { format: "count" });
+
+    await readInFreshRegistry();
+    await collectGarbage(() => false);
+    const before = countWeakRefs();
+    for (let request = 0; request < 20; request += 1) {
+      await readInFreshRegistry();
+    }
+    await collectGarbage(() => false);
+
+    expect(countWeakRefs() - before).toBeLessThan(5);
   });
 });
