@@ -7,6 +7,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.1-alpha.5] - 2026-10-12
+
 ### Changed
 
 - **Breaking:** setters are now plain functions, as in Effect's React, Vue, and Solid bindings.
@@ -84,7 +86,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Server rendering and automatic Svelte hydration for serializable resources.
 - Scoped registries, hydration boundaries, and scoped atom contexts.
 
-[Unreleased]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.4...HEAD
+[Unreleased]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.5...HEAD
+[0.0.1-alpha.5]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.4...v0.0.1-alpha.5
 [0.0.1-alpha.4]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.3...v0.0.1-alpha.4
 [0.0.1-alpha.3]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.2...v0.0.1-alpha.3
 [0.0.1-alpha.2]: https://github.com/siim-m/atom-svelte/compare/v0.0.1-alpha.1...v0.0.1-alpha.2
