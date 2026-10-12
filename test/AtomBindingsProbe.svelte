@@ -32,11 +32,11 @@
 >
 <button
   data-testid="update"
-  onclick={() => counter.update((current) => ({ ...current, count: current.count + 1 }))}
+  onclick={() => counter.set((current) => ({ ...current, count: current.count + 1 }))}
 >
   update
 </button>
 <button
   data-testid="set-function"
-  onclick={() => storedFunction.set(() => "stored")}>set function</button
+  onclick={() => storedFunction.set(() => () => "stored")}>set function</button
 >

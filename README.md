@@ -61,6 +61,62 @@ For SSR:
 - `makeScopedAtomContext` — share one atom through Svelte context.
 - `fromAtom`, `fromAtomRef`, `resolveAtom`, `resolveAtomRef` — low-level adapters.
 
+## Writing atoms
+
+`useAtom` returns a reactive `current` and a `set` function. When every value an atom reads can be
+written back, as with `Atom.make`, you can also assign `current`, and `bind:` works.
+
+```svelte
+<script lang="ts">
+  import { useAtom } from "@siim-m/atom-svelte";
+  import { countAtom, queryAtom } from "./Atoms.ts";
+
+  const query = useAtom(queryAtom);
+  const count = useAtom(countAtom);
+</script>
+
+<input bind:value={query.current} />
+<button onclick={() => (query.current = "")}>Clear</button>
+<button onclick={() => count.set((n) => n + 1)}>{count.current}</button>
+```
+
+- `set` takes a value or an updater function, as in Effect's React, Vue, and Solid bindings.
+- An atom whose write type includes a function accepts only updaters. To store a function, assign
+  `current` or return the function from an updater: `set(() => fn)`.
+- In generic code, where the write type is a type parameter, write `set(() => value)`.
+- `current` is read-only when a value the atom reads cannot be written back, for example on
+  `Atom.fn` or an async `Atom.kvs`. Call `set` instead.
+- TypeScript enforces a read-only `current` in scripts only. svelte-check does not check `bind:`
+  against it, and in value mode an assignment writes the atom like `set`. Do not bind such a
+  `current`.
+- An `Atom.map` atom keeps its source's write type. Assigning its `current` writes the source, so
+  the value you read back can differ.
+- `useAtomSet` mounts the atom and returns only the setter. Use it in a component that writes an
+  atom without reading it.
+
+Use promise mode to await a write to an `AsyncResult` atom, such as `Atom.fn` or an `AtomRpc`
+mutation.
+
+```svelte
+<script lang="ts">
+  import { useAtomSet } from "@siim-m/atom-svelte";
+  import { saveAtom } from "./Atoms.ts";
+
+  const save = useAtomSet(saveAtom, { mode: "promise" });
+</script>
+
+<button onclick={() => save({ title: "Draft" })}>Save</button>
+```
+
+- `mode: "promise"` resolves with the success value and rejects with the failure.
+- `mode: "promiseExit"` resolves with an `Exit`.
+- Pass `{ signal }` as the second argument to stop waiting. It does not interrupt the atom. Write
+  `Atom.Interrupt` for that.
+- A promise-mode setter does not accept `Atom.Reset`. A reset returns the atom to its initial state,
+  so there is no result to wait for. Reset with a value-mode setter. A reset also leaves a promise
+  from an earlier write to that atom pending.
+- In promise modes, `current` is read-only, and assigning it throws.
+
 ## Latest-value RPC streams
 
 Use a latest-value stream for an open-ended RPC feed. Use it when the UI needs only the newest

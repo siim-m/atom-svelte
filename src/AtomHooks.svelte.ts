@@ -16,35 +16,59 @@ export interface AtomSetOptions {
   readonly signal?: AbortSignal | undefined;
 }
 
-/** Write methods for a value-mode atom binding. */
-export interface AtomValueSet<R, W> {
-  set(value: W): void;
-  update(f: (value: R) => W): void;
-}
+type FunctionValue<W> = 0 extends 1 & W ? never : Extract<W, (...args: never) => unknown>;
 
-/** Write methods for a promise-mode atom binding. */
-export interface AtomPromiseSet<A, W> {
-  set(value: W, options?: AtomSetOptions): Promise<A>;
-}
+/**
+ * Writes a value-mode atom. A function argument is an updater of the current value, so an atom
+ * whose write type includes a function accepts only updaters.
+ */
+export type AtomValueSetter<R, W> = (
+  value: [FunctionValue<W>] extends [never] ? W | ((value: R) => W) : (value: R) => W,
+) => void;
 
-/** Write methods for a promise-exit-mode atom binding. */
-export interface AtomPromiseExitSet<A, E, W> {
-  set(value: W, options?: AtomSetOptions): Promise<Exit.Exit<A, E>>;
-}
+/**
+ * Writes an asynchronous atom and resolves with its success value. It does not accept
+ * `Atom.Reset`, which returns the atom to its initial state and so leaves no result to wait for.
+ */
+export type AtomPromiseSetter<A, W> = (
+  value: Exclude<W, Atom.Reset>,
+  options?: AtomSetOptions,
+) => Promise<A>;
+
+/** Writes an asynchronous atom and resolves with its exit. It does not accept `Atom.Reset`. */
+export type AtomPromiseExitSetter<A, E, W> = (
+  value: Exclude<W, Atom.Reset>,
+  options?: AtomSetOptions,
+) => Promise<Exit.Exit<A, E>>;
 
 /** Modes supported by writable atom helpers. */
 export type AtomWriteMode = "value" | "promise" | "promiseExit";
 
-/** Selects the write API for an atom binding mode. */
-export type AtomSet<R, W, Mode extends AtomWriteMode = "value"> = Mode extends "promise"
-  ? AtomPromiseSet<AsyncResult.AsyncResult.Success<R>, W>
+/** Selects the setter for an atom write mode. */
+export type AtomSetter<R, W, Mode extends AtomWriteMode = "value"> = Mode extends "promise"
+  ? AtomPromiseSetter<AsyncResult.AsyncResult.Success<R>, W>
   : Mode extends "promiseExit"
-    ? AtomPromiseExitSet<AsyncResult.AsyncResult.Success<R>, AsyncResult.AsyncResult.Failure<R>, W>
-    : AtomValueSet<R, W>;
+    ? AtomPromiseExitSetter<
+        AsyncResult.AsyncResult.Success<R>,
+        AsyncResult.AsyncResult.Failure<R>,
+        W
+      >
+    : AtomValueSetter<R, W>;
 
-/** A stable reactive value with write methods for the selected mode. */
-export type AtomBinding<R, W, Mode extends AtomWriteMode = "value"> = AtomValue<R> &
-  AtomSet<R, W, Mode>;
+/** A stable reactive value with a read-only `current` and the setter for the selected mode. */
+export interface AtomBinding<R, W, Mode extends AtomWriteMode = "value"> extends AtomValue<R> {
+  readonly set: AtomSetter<R, W, Mode>;
+}
+
+/**
+ * A value-mode binding whose `current` can be assigned, including with `bind:`. Every value it
+ * reads can be written back.
+ */
+export interface WritableAtomBinding<R extends W, W = R> {
+  get current(): R;
+  set current(value: W);
+  readonly set: AtomValueSetter<R, W>;
+}
 
 const selectorCache = new WeakMap<object, WeakMap<object, Atom.Atom<unknown>>>();
 
@@ -169,17 +193,21 @@ const assumeAsyncInput = (
   return input as unknown as WritableAtomInput<AsyncResult.AsyncResult<never>, unknown>;
 };
 
-const makeValueSet = <R, W>(
-  registry: AtomRegistry.AtomRegistry,
-  input: WritableAtomInput<R, W>,
-): AtomValueSet<R, W> => ({
-  set(value) {
-    registry.set(resolveWritableAtom(input), value);
-  },
-  update(f) {
-    registry.update(resolveWritableAtom(input), f);
-  },
-});
+const makeValueSetter =
+  (
+    registry: AtomRegistry.AtomRegistry,
+    input: WritableAtomInput<unknown, unknown>,
+  ): AtomValueSetter<unknown, unknown> =>
+  (value) => {
+    const atom = resolveWritableAtom(input);
+    if (typeof value === "function") {
+      // A function argument is an updater; the public setter type enforces this.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      registry.update(atom, value as (value: unknown) => unknown);
+    } else {
+      registry.set(atom, value);
+    }
+  };
 
 const writeAndGetResult = <A, E, W>(
   registry: AtomRegistry.AtomRegistry,
@@ -191,64 +219,78 @@ const writeAndGetResult = <A, E, W>(
   return AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true });
 };
 
-const makePromiseSet = <A, E, W>(
-  registry: AtomRegistry.AtomRegistry,
-  input: WritableAtomInput<AsyncResult.AsyncResult<A, E>, W>,
-): AtomPromiseSet<A, W> => ({
-  set(value, options) {
-    return Effect.runPromise(writeAndGetResult(registry, input, value), options);
-  },
-});
+const makePromiseSetter =
+  <A, E, W>(
+    registry: AtomRegistry.AtomRegistry,
+    input: WritableAtomInput<AsyncResult.AsyncResult<A, E>, W>,
+  ): AtomPromiseSetter<A, W> =>
+  (value, options) =>
+    Effect.runPromise(writeAndGetResult(registry, input, value), options);
 
-const makePromiseExitSet = <A, E, W>(
-  registry: AtomRegistry.AtomRegistry,
-  input: WritableAtomInput<AsyncResult.AsyncResult<A, E>, W>,
-): AtomPromiseExitSet<A, E, W> => ({
-  set(value, options) {
-    return Effect.runPromiseExit(writeAndGetResult(registry, input, value), options);
-  },
-});
+const makePromiseExitSetter =
+  <A, E, W>(
+    registry: AtomRegistry.AtomRegistry,
+    input: WritableAtomInput<AsyncResult.AsyncResult<A, E>, W>,
+  ): AtomPromiseExitSetter<A, E, W> =>
+  (value, options) =>
+    Effect.runPromiseExit(writeAndGetResult(registry, input, value), options);
 
-const makeWriteApi = (
+const makeSetter = (
   registry: AtomRegistry.AtomRegistry,
   input: WritableAtomInput<unknown, unknown>,
-  mode: AtomWriteMode | undefined,
+  mode: AtomWriteMode,
 ):
-  | AtomValueSet<unknown, unknown>
-  | AtomPromiseSet<unknown, unknown>
-  | AtomPromiseExitSet<unknown, unknown, unknown> =>
+  | AtomValueSetter<unknown, unknown>
+  | AtomPromiseSetter<unknown, unknown>
+  | AtomPromiseExitSetter<unknown, unknown, unknown> =>
   mode === "promise"
-    ? makePromiseSet(registry, assumeAsyncInput(input))
+    ? makePromiseSetter(registry, assumeAsyncInput(input))
     : mode === "promiseExit"
-      ? makePromiseExitSet(registry, assumeAsyncInput(input))
-      : makeValueSet(registry, input);
+      ? makePromiseExitSetter(registry, assumeAsyncInput(input))
+      : makeValueSetter(registry, input);
 
-/** Reads and writes an asynchronous atom in promise mode. */
+/** Reads and writes an asynchronous atom in promise mode. Its `current` is read-only. */
 export function useAtom<A, E, W>(
   input: WritableAtomInput<AsyncResult.AsyncResult<A, E>, W>,
   options: { readonly mode: "promise" },
-): AtomValue<AsyncResult.AsyncResult<A, E>> & AtomPromiseSet<A, W>;
-/** Reads and writes an asynchronous atom in promise-exit mode. */
+): AtomBinding<AsyncResult.AsyncResult<A, E>, W, "promise">;
+/** Reads and writes an asynchronous atom in promise-exit mode. Its `current` is read-only. */
 export function useAtom<A, E, W>(
   input: WritableAtomInput<AsyncResult.AsyncResult<A, E>, W>,
   options: { readonly mode: "promiseExit" },
-): AtomValue<AsyncResult.AsyncResult<A, E>> & AtomPromiseExitSet<A, E, W>;
-/** Reads and writes a writable atom through one stable reactive object. */
+): AtomBinding<AsyncResult.AsyncResult<A, E>, W, "promiseExit">;
+/**
+ * Reads and writes an atom through one stable reactive object. Its `current` is assignable because
+ * every value it reads can be written back.
+ */
+export function useAtom<R extends W, W>(
+  input: WritableAtomInput<R, W>,
+  options?: { readonly mode?: "value" },
+): WritableAtomBinding<R, W>;
+/** Reads and writes an atom whose read values cannot be written back. Its `current` is read-only. */
 export function useAtom<R, W>(
   input: WritableAtomInput<R, W>,
   options?: { readonly mode?: "value" },
-): AtomValue<R> & AtomValueSet<R, W>;
+): AtomBinding<R, W>;
 export function useAtom(input: unknown, options?: { readonly mode?: AtomWriteMode }): unknown {
   const registry = getAtomRegistry();
   const writableInput = assumeWritableInput(input);
   const value = useAtomValue(writableInput);
-  const write = makeWriteApi(registry, writableInput, options?.mode);
+  const mode = options?.mode ?? "value";
 
   return {
     get current() {
       return value.current;
     },
-    ...write,
+    set current(next: unknown) {
+      if (mode !== "value") {
+        throw new TypeError(
+          `current is read-only in ${mode} mode. Call set(value) to write the atom.`,
+        );
+      }
+      registry.set(resolveWritableAtom(writableInput), next);
+    },
+    set: makeSetter(registry, writableInput, mode),
   };
 }
 
@@ -258,26 +300,26 @@ export const useAtomMount = <A>(input: AtomInput<A>): void => {
   $effect(() => registry.mount(resolveAtom(input)));
 };
 
-/** Mounts an asynchronous atom and returns promise-mode write methods. */
+/** Mounts an asynchronous atom and returns a promise-mode setter. */
 export function useAtomSet<A, E, W>(
   input: WritableAtomInput<AsyncResult.AsyncResult<A, E>, W>,
   options: { readonly mode: "promise" },
-): AtomPromiseSet<A, W>;
-/** Mounts an asynchronous atom and returns promise-exit-mode write methods. */
+): AtomPromiseSetter<A, W>;
+/** Mounts an asynchronous atom and returns a promise-exit-mode setter. */
 export function useAtomSet<A, E, W>(
   input: WritableAtomInput<AsyncResult.AsyncResult<A, E>, W>,
   options: { readonly mode: "promiseExit" },
-): AtomPromiseExitSet<A, E, W>;
-/** Mounts a writable atom and returns stable write methods without a value. */
+): AtomPromiseExitSetter<A, E, W>;
+/** Mounts a writable atom and returns a stable setter without a value. */
 export function useAtomSet<R, W>(
   input: WritableAtomInput<R, W>,
   options?: { readonly mode?: "value" },
-): AtomValueSet<R, W>;
+): AtomValueSetter<R, W>;
 export function useAtomSet(input: unknown, options?: { readonly mode?: AtomWriteMode }): unknown {
   const registry = getAtomRegistry();
   const writableInput = assumeWritableInput(input);
   useAtomMount(writableInput);
-  return makeWriteApi(registry, writableInput, options?.mode);
+  return makeSetter(registry, writableInput, options?.mode ?? "value");
 }
 
 /** Mounts an atom and returns a stable refresh function. */
